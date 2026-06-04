@@ -56,11 +56,13 @@ Go to `Program.cs` and hit F5. Select C# > Default Configuration.
 It will launch the web app at the localhost and port number as set in the `launchSettings.json`.
 
 At `http://localhost:5065/`, I should see:
+
 ```
 Hello World!
 ```
 
 Or use .NET CLI to run the project. `cd Backend/src/GameStore.Api`:
+
 ```bash
 $ dotnet run
 
@@ -73,4 +75,37 @@ info: Microsoft.Hosting.Lifetime[0]
       Hosting environment: Development
 info: Microsoft.Hosting.Lifetime[0]
       Content root path: C:\Users\Li-Ting\Documents\Projects\Video-Game-Store-Pro\Backend\src\GameStore.Api
+```
+
+### Using the REST Client extension
+
+Create `gamestore.http` file at the root of `Backend` folder.
+
+Write:
+
+```
+GET http://localhost:5065
+```
+
+Then, run `dotnet run`.
+
+Once the app is up, click `Send Request`.
+
+The `REST Client` extension will open a new panel in VS code:
+
+```
+HTTP/1.1 200 OK
+Connection: close
+Content-Type: text/plain; charset=utf-8
+Date: Thu, 04 Jun 2026 03:08:03 GMT
+Server: Kestrel
+Transfer-Encoding: chunked
+
+Hello World!
+```
+
+As expected from the current `Program.cs`:
+
+```csharp
+app.MapGet("/", () => "Hello World!");
 ```
