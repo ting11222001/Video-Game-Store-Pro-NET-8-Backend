@@ -50,3 +50,27 @@ Time Elapsed 00:00:07.26
 Just make sure the `dotnet build` finds a `.csproj` to build - a `.dll` file will show up, and the bin and the obj folders will contain temporal files too.
 
 ### Running and debugging a Web project
+
+Go to `Program.cs` and hit F5. Select C# > Default Configuration.
+
+It will launch the web app at the localhost and port number as set in the `launchSettings.json`.
+
+At `http://localhost:5065/`, I should see:
+```
+Hello World!
+```
+
+Or use .NET CLI to run the project. `cd Backend/src/GameStore.Api`:
+```bash
+$ dotnet run
+
+Building...
+info: Microsoft.Hosting.Lifetime[14]
+      Now listening on: http://localhost:5065
+info: Microsoft.Hosting.Lifetime[0]
+      Application started. Press Ctrl+C to shut down.
+info: Microsoft.Hosting.Lifetime[0]
+      Hosting environment: Development
+info: Microsoft.Hosting.Lifetime[0]
+      Content root path: C:\Users\Li-Ting\Documents\Projects\Video-Game-Store-Pro\Backend\src\GameStore.Api
+```
