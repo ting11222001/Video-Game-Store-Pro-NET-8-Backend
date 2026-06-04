@@ -109,3 +109,15 @@ As expected from the current `Program.cs`:
 ```csharp
 app.MapGet("/", () => "Hello World!");
 ```
+
+### Knowledge check for this section
+
+- What is ASP.NET Core? It's a web development framework for building web apps on the .NET platform.
+- What does the WebApplication class encapsulate in ASP.NET Core projects? All app's resources including an HTTP server, middleware components, logging, DI services, and configuration. 
+  - The WebApplication acts as a host that encapsulates all essential resources for the application. 
+  - This includes not only middleware components and logging but also an HTTP server implementation, dependency injection (DI) services, and configuration settings, making it a comprehensive setup for an ASP.NET Core project.
+- In ASP.NET Core projects, where is the application URL for local development specified?
+  - In the launchSettings.json file under the "applicationUrl" setting for each profile.
+  - This allows developers to configure and test their applications locally with specific URLs, including setting different ports or even hostnames if needed, directly from their development environment without altering the application's code. 
+
+## Building a REST API with ASP.NET Core
