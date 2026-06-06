@@ -883,3 +883,66 @@ Transfer-Encoding: chunked
   }
 ]
 ```
+
+### Knowledge check so far
+
+#### Which statement best reflects the relationship between APIs and REST?
+
+##### Answer
+An API provides a set of functions to clients, and REST imposes conditions on how these functions should be presented and interacted with.
+
+##### Explain
+An API (Application Programming Interface) is a set of definitions and protocols for building and integrating application software. It defines the methods and data formats for communicating with the service from an application. 
+
+REST (Representational State Transfer), on the other hand, is an architectural style that defines a set of constraints for creating Web services. RESTful services enable interacting parties to communicate over the Web using the standard HTTP protocol. 
+
+The principles of REST guide the design of the architecture for APIs, focusing on stateless communication, resource-based URLs, and the use of HTTP methods to perform operations. 
+
+##### Analogy
+
+Think of it this way:
+
+API is like a waiter at a restaurant. It takes your order (request) and brings back your food (response). It's the messenger between you and the kitchen (the system).
+
+REST is like the restaurant's rules for how the waiter should behave. For example:
+
+- Always speak clearly (use standard HTTP methods like GET, POST, DELETE)
+- Don't remember previous customers (stateless, each request stands alone)
+- Refer to items by name on the menu (use resource based URLs like `/orders/123`)
+
+So the relationship is: an API is the thing that lets two systems talk to each other. REST is a set of rules that tells you how to design that API well.
+
+A REST API simply means an API that follows those REST rules.
+
+##### The core REST rules using the restaurant analogy
+
+1. Stateless (The waiter has amnesia)
+Every time you call the waiter, they have no memory of your last visit or even your last order. Each request must include all the information needed. You can't say "the same as before." You must always give the full order.
+
+2. Resource based URLs (Everything on the menu has a name)
+Every "thing" in the system has its own address. For example:
+
+`/customers/42` is customer number 42
+`/orders/99` is order number 99
+
+You don't say "go get that thing." You point to it by name.
+
+3. HTTP methods (The type of request you make)
+Instead of saying everything in words, you use standard actions:
+
+- GET = "Can I see the menu?" (read something)
+- POST = "I'd like to order something new" (create something)
+- PUT = "I want to change my whole order" (replace something)
+- PATCH = "Just swap the drink" (update part of something)
+- DELETE = "Cancel my order" (remove something)
+
+4. Uniform interface (Every waiter works the same way)
+No matter which waiter serves you, they all follow the same process. This makes the system predictable and easy to work with.
+
+5. Client and server are separate (You and the kitchen don't need to know each other)
+You only talk to the waiter. You don't need to know how the kitchen works. The kitchen doesn't need to know who you are. They just handle orders and send food out.
+
+6. Cacheable (Popular orders are remembered at the counter)
+If 100 people order the same thing, the kitchen doesn't need to cook it fresh 100 times. The result can be stored temporarily and reused. This makes things faster.
+
+## Using Data Transfer Objects
