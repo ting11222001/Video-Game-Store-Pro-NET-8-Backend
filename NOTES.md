@@ -341,7 +341,8 @@ By default, .NET core will serialize the response into json format.
 
 ### Implementing a GET BY ID endpoint
 
-Route Parameters and Guid Type in ASP.NET
+#### Route Parameters and Guid Type in ASP.NET
+
 One-liner: The name in curly braces is a placeholder you choose, and Guid is a data type for long unique IDs.
 
 Key points:
@@ -403,3 +404,101 @@ Server: Kestrel
 
 Not confusing status code 200 with a null body ;)
 
+### Implementing the POST endpoint
+
+For the post endpoint, I want to receive the whole body of the `game` I'm creating.
+
+.NET core will deserilaize the json body into C# object.
+
+We want to return the route to the created `game`.
+
+So instead of writing this:
+```csharp
+// POST /games
+app.MapPost("/games", (Game game) =>
+{
+    game.Id = Guid.NewGuid();
+    games.Add(game);
+    return Results.Ok(game);
+});
+```
+
+We write:
+```csharp
+const string GetGameEndpointeName = "GetGame";
+
+// GET /games/{id}
+app.MapGet("games/{id}", (Guid id) =>
+{
+    Game? game = games.Find(game => game.Id == id);
+    return game is null ? Results.NotFound() : Results.Ok(game);
+})
+.WithName(GetGameEndpointeName);
+
+// POST /games
+app.MapPost("/games", (Game game) =>
+{
+    game.Id = Guid.NewGuid();
+    games.Add(game);
+    return Results.CreatedAtRoute(GetGameEndpointeName, new { id = game.Id }, game);
+});
+```
+
+Test in `gamestore.http`:
+```
+###
+POST http://localhost:5065/games
+Content-Type: application/json
+
+{
+    "name": "Minecraft",
+    "genre": "Kids and Family",
+    "price": 19.99,
+    "releaseDate": "2011-11-18"
+}
+```
+
+It should respond:
+```
+HTTP/1.1 201 Created
+Connection: close
+Content-Type: application/json; charset=utf-8
+Date: Sat, 06 Jun 2026 03:19:58 GMT
+Server: Kestrel
+Location: http://localhost:5065/games/ef74c558-94c6-4346-8fb9-15410cb8c96d
+Transfer-Encoding: chunked
+
+{
+  "id": "ef74c558-94c6-4346-8fb9-15410cb8c96d",
+  "name": "Minecraft",
+  "genre": "Kids and Family",
+  "price": 19.99,
+  "releaseDate": "2011-11-18"
+}
+```
+
+I can then use that `Location` to get that newly created resource, very convenient.
+
+#### Anonymous Object Creation in C#
+
+One-liner: `new { name = value }` creates a temporary, nameless object with named properties, without needing a class.
+
+Key points:
+- This is creating an object, not destructuring one. Destructuring takes things apart; this puts things together.
+- The property names you write (like `id`) must match the route parameter names in the URL template.
+- Anonymous objects are read-only. You cannot change their properties after creation.
+- Common use: passing route values, quick projections in LINQ, and lightweight data grouping.
+- Re`sults.CreatedAtRoute` needs to know which route parameters to fill in when building the URL. In this case, the named route expects an `id` parameter, so you pass `new { id = game.Id }` to say "use this game's ID as the `id` in the URL".
+
+Why not just pass game.Id directly?
+- Because `CreatedAtRoute` accepts an `object` and uses reflection to read its properties by name. It matches property names to route parameter names. Passing a plain `Guid` has no property names, so it would not know how to map it.
+
+```csharp
+// Route template: /games/{id}
+// This tells CreatedAtRoute to fill {id} with game.Id
+Results.CreatedAtRoute(
+    GetGameEndpointeName,
+    new { id = game.Id },  // <-- anonymous object, property "id" maps to {id} in route
+    game
+);
+```
