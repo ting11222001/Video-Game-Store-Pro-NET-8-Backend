@@ -725,3 +725,100 @@ Transfer-Encoding: chunked
   }
 }
 ```
+
+### Implementing the PUT endpoint
+
+I can start writing the PUT method like the below - it's convention to let the PUT method return `204 No Content`:
+```csharp
+// PUT /games/{id}
+app.MapPut("/games/{id}", (Guid id, Game updatedGame) =>
+{
+    Game? existingGame = games.Find(game => game.Id == id);
+    if (existingGame is null)
+    {
+        return Results.NotFound();
+    }
+
+    existingGame.Name = updatedGame.Name;
+    existingGame.Genre = updatedGame.Genre;
+    existingGame.Price = updatedGame.Price;
+    existingGame.ReleaseDate = updatedGame.ReleaseDate;
+
+    return Results.NoContent();
+})
+.WithParameterValidation();
+```
+
+Test the PUT endpoint:
+```
+###
+PUT http://localhost:5065/games/ff9f5f37-b80e-49ce-b484-f5154dcaabc4
+Content-Type: application/json
+
+{
+    "name": "Street Fighter II Turbo",
+    "genre": "Fighting",
+    "price": 9.99,
+    "releaseDate": "1992-07-15"
+}
+```
+
+It prints this as expected:
+```
+HTTP/1.1 204 No Content
+Connection: close
+Date: Sat, 06 Jun 2026 09:53:45 GMT
+Server: Kestrel
+
+```
+
+It works for now.
+
+However, this is not thread safe in production where there will be multiple requests into my API i.e. updating the same record at the same time:
+```csharp
+    existingGame.Name = updatedGame.Name;
+    existingGame.Genre = updatedGame.Genre;
+    existingGame.Price = updatedGame.Price;
+    existingGame.ReleaseDate = updatedGame.ReleaseDate;
+```
+
+I can use `ConcurrentBag` to replace the in-memory list `List` in the `Program.cs`:
+```csharp
+ConcurrentBag<Game> games = [
+    new Game
+    {
+        Id = Guid.NewGuid(),
+        Name = "Street Fighter II",
+        Genre = "Fighting",
+        Price = 19.99m,
+        ReleaseDate = new DateOnly(1992, 7, 15)
+    },
+    new Game
+    {
+        Id = Guid.NewGuid(),
+        Name = "Final Fantasy XIV",
+        Genre = "Roleplaying",
+        Price = 59.99m,
+        ReleaseDate = new DateOnly(2010, 9, 30)
+    },
+    new Game
+    {
+        Id = Guid.NewGuid(),
+        Name = "FIFA 23",
+        Genre = "Sports",
+        Price = 69.99m,
+        ReleaseDate = new DateOnly(2022, 9, 27)
+    }
+];
+```
+
+But that's just a note to know. I'm still using `List` for now.
+
+Also, test the PUT method wiht a non-existing id, and it prints this as expected:
+```
+HTTP/1.1 404 Not Found
+Content-Length: 0
+Connection: close
+Date: Sat, 06 Jun 2026 09:58:14 GMT
+Server: Kestrel
+```
