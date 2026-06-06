@@ -30,6 +30,7 @@ List<Game> games = [
     }
 ];
 
-app.MapGet("/", () => "Hello World!");
+// GET /games
+app.MapGet("/games", () => games);
 
 app.Run();

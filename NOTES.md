@@ -206,7 +206,7 @@ But decimal type is using fixed point type, and it's designed for finance and cu
 
 #### Test with in-memory games list
 
-In `Program.cs`:
+In `Program.cs`, note that I'm using `m` to make sure the program is getting the numbers as decimals:
 ```csharp
 using GameStore.Api.Models;
 
@@ -274,3 +274,67 @@ prop  →  public int MyProperty { get; set; }
 ```
 
 So I ended up reinstalling to the old version `1.11.14`
+
+### Implementing a GET ALL endpoint
+
+```csharp
+app.MapGet("/", () => "Hello World!");
+// add request pipeline configurations in between here
+app.Run();
+```
+
+On `MapGet`, use `ctrl + space`, it will give a list of methods like `MapDelete`, etc.
+
+This is saying when the pattern is matched `/games`, then what should be done:
+```csharp
+app.MapGet("/games", () => games);
+```
+
+To test, go to `gamestore.http` and do:
+```
+GET http://localhost:5065/games
+```
+
+In terminal:
+```bash
+cd Backend/src/GameStore.Api
+dotnet run
+```
+
+Then click `Send Request`, REST client will open a window to the right and show these games:
+```
+HTTP/1.1 200 OK
+Connection: close
+Content-Type: application/json; charset=utf-8
+Date: Sat, 06 Jun 2026 01:54:57 GMT
+Server: Kestrel
+Transfer-Encoding: chunked
+
+[
+  {
+    "id": "bc1afa4e-e553-41e9-ade0-54e3943a4166",
+    "name": "Street Fighter II",
+    "genre": "Fighting",
+    "price": 19.99,
+    "releaseDate": "1992-07-15"
+  },
+  {
+    "id": "4ebde087-33b9-4cef-af83-dfd9a87761cc",
+    "name": "Final Fantasy XIV",
+    "genre": "Roleplaying",
+    "price": 59.99,
+    "releaseDate": "2010-09-30"
+  },
+  {
+    "id": "52547d20-247a-4fa4-aa74-d944a0c97b08",
+    "name": "FIFA 23",
+    "genre": "Sports",
+    "price": 69.99,
+    "releaseDate": "2022-09-27"
+  }
+]
+```
+
+#### `Content-Type: application/json`
+
+By default, .NET core will serialize the response into json format.
