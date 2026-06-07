@@ -5,30 +5,49 @@ var app = builder.Build();
 
 const string GetGameEndpointName = "GetGame";
 
+List<Genre> genres = [
+    new Genre { Id = new Guid("d8a77400-e414-4e5a-a695-c3ec90ce6177"), Name = "Fighting" },
+    new Genre { Id = new Guid("b8a77400-e414-4e5a-a695-c3ec90ce6177"), Name = "Roleplaying" },
+    new Genre { Id = new Guid("c8a77400-e414-4e5a-a695-c3ec90ce6177"), Name = "Sports" },
+    new Genre { Id = new Guid("d8a77400-e414-4e5a-a695-c3ec90ce6178"), Name = "Racing" }
+];
+
 List<Game> games = [
     new Game
     {
         Id = Guid.NewGuid(),
         Name = "Street Fighter II",
-        Genre = "Fighting",
+        Genre = genres[0],
         Price = 19.99m,
-        ReleaseDate = new DateOnly(1992, 7, 15)
+        ReleaseDate = new DateOnly(1992, 7, 15),
+        Description = "The classic fighting game that defined the genre."
     },
     new Game
     {
         Id = Guid.NewGuid(),
         Name = "Final Fantasy XIV",
-        Genre = "Roleplaying",
+        Genre = genres[1],
         Price = 59.99m,
-        ReleaseDate = new DateOnly(2010, 9, 30)
+        ReleaseDate = new DateOnly(2010, 9, 30),
+        Description = "An epic MMORPG with a rich story and vibrant world."
     },
     new Game
     {
         Id = Guid.NewGuid(),
         Name = "FIFA 23",
-        Genre = "Sports",
+        Genre = genres[2],
         Price = 69.99m,
-        ReleaseDate = new DateOnly(2022, 9, 27)
+        ReleaseDate = new DateOnly(2022, 9, 27),
+        Description = "The latest installment in the popular soccer franchise."
+    },
+    new Game
+    {
+        Id = Guid.NewGuid(),
+        Name = "Gran Turismo 7",
+        Genre = genres[3],
+        Price = 59.99m,
+        ReleaseDate = new DateOnly(2022, 9, 27),
+        Description = "The latest entry in the acclaimed racing series."
     }
 ];
 

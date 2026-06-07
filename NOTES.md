@@ -946,3 +946,78 @@ You only talk to the waiter. You don't need to know how the kitchen works. The k
 If 100 people order the same thing, the kitchen doesn't need to cook it fresh 100 times. The result can be stored temporarily and reused. This makes things faster.
 
 ## Using Data Transfer Objects
+
+### Expanding the data model
+
+Create a new data model class for `Genre`.
+
+In `Program.cs` create a in-memory list of Genres but hardcoding the Guid.
+
+By doing this in PowerShell:
+```
+PS C:\Projects\Video-Game-Store-Pro> [guid]::NewGuid()
+
+Guid                                
+----                                
+d8a77400-e414-4e5a-a695-c3ec90ce6177
+```
+
+Then paste the generated Guid into the list now:
+```csharp
+List<Genre> genres = [
+    new Genre { Id = new Guid("d8a77400-e414-4e5a-a695-c3ec90ce6177"), Name = "Fighting" },
+    new Genre { Id = new Guid("b8a77400-e414-4e5a-a695-c3ec90ce6177"), Name = "Roleplaying" },
+    new Genre { Id = new Guid("c8a77400-e414-4e5a-a695-c3ec90ce6177"), Name = "Sports" },
+    new Genre { Id = new Guid("d8a77400-e414-4e5a-a695-c3ec90ce6178"), Name = "Racing" }
+];
+```
+
+Test it in the `gamestore.http`:
+```
+GET http://localhost:5065/games
+```
+
+I can see genre is returning both id and name, but what if for my future home catalog page that I only need the name, not the id?
+```
+HTTP/1.1 200 OK
+Connection: close
+Content-Type: application/json; charset=utf-8
+Date: Sun, 07 Jun 2026 12:44:52 GMT
+Server: Kestrel
+Transfer-Encoding: chunked
+
+[
+  {
+    "id": "d6ec98db-31ba-4621-bd46-02ef5dac1111",
+    "name": "Street Fighter II",
+    "genre": {
+      "id": "d8a77400-e414-4e5a-a695-c3ec90ce6177",
+      "name": "Fighting"
+    },
+    "price": 19.99,
+    "releaseDate": "1992-07-15",
+    "description": "The classic fighting game that defined the genre."
+  },
+  ...
+]
+```
+
+I also don't necessarily need the description of the games as what if I need to list hundres of games then that will be too much.
+
+I will also need to fix what objects to POST:
+```
+###
+POST http://localhost:5065/games
+Content-Type: application/json
+
+{
+  "name": "Minecraft",
+  "genre": "Kids and Family", -> here should just use the Genre id to show the relation
+  "price": 19.99,
+  "releaseDate": "2011-11-18"
+}
+```
+
+So I need a way to define what's exposed to the client.
+
+### Understanding Data Transfer Objects
