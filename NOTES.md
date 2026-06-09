@@ -1138,3 +1138,129 @@ Transfer-Encoding: chunked
   }
 ]
 ```
+
+### Using DTOs with POST requests
+
+Make sure the data annotations e.g. required, string length, etc. are copied from the Models into the Dtos.
+
+This helps us check if the input parameters are fine.
+
+Then, add association to the Genre - make sure the Genre exists in our database first before continuing.
+
+`CreateGameDto` is the way how we're going to store the data internally.
+
+But when responding back to client, we use `GameDetailsDto`.
+
+Changes:
+```csharp
+// Old: POST /games
+app.MapPost("/games", (Game game) =>
+{
+    game.Id = Guid.NewGuid();
+    games.Add(game);
+    return Results.CreatedAtRoute(
+        GetGameEndpointName,
+        new { id = game.Id },
+        game
+    );
+})
+.WithParameterValidation();
+
+// New: POST /games
+app.MapPost("/games", (CreateGameDto gameDto) =>
+{
+    Genre? genre = genres.Find(g => g.Id == gameDto.GenreId);
+    if (genre is null)
+    {
+        return Results.BadRequest("Invalid genre ID.");
+    }
+
+    Game game = new Game
+    {
+        Id = Guid.NewGuid(),
+        Name = gameDto.Name,
+        Genre = genre,
+        Price = gameDto.Price,
+        ReleaseDate = gameDto.ReleaseDate,
+        Description = gameDto.Description
+    };
+
+    games.Add(game);
+    return Results.CreatedAtRoute(
+        GetGameEndpointName,
+        new { id = game.Id },
+        new GameDetailsDto(
+            game.Id,
+            game.Name,
+            game.Genre.Id,
+            game.Price,
+            game.ReleaseDate,
+            game.Description
+        )
+    );
+})
+.WithParameterValidation();
+```
+
+Test it - take an existing GenreId and paste it into the POST endpoint:
+```
+###
+POST http://localhost:5065/games
+Content-Type: application/json
+
+{
+    "name": "Minecraft",
+    "genreId": "b8a77400-e414-4e5a-a695-c3ec90ce6177",
+    "price": 19.99,
+    "releaseDate": "2011-11-18",
+    "description": "A sandbox game that allows players to build and explore virtual worlds made of blocks."
+}
+```
+
+It prints this as expected:
+```
+HTTP/1.1 201 Created
+Connection: close
+Content-Type: application/json; charset=utf-8
+Date: Tue, 09 Jun 2026 00:42:09 GMT
+Server: Kestrel
+Location: http://localhost:5065/games/cc939d7e-417e-4a6e-a103-e790b9b4cecf
+Transfer-Encoding: chunked
+
+{
+  "id": "cc939d7e-417e-4a6e-a103-e790b9b4cecf",
+  "name": "Minecraft",
+  "genreId": "b8a77400-e414-4e5a-a695-c3ec90ce6177",
+  "price": 19.99,
+  "releaseDate": "2011-11-18",
+  "description": "A sandbox game that allows players to build and explore virtual worlds made of blocks."
+}
+```
+
+And the get all endpoints will return a list with this new game - note that it won't return the description info:
+```
+HTTP/1.1 200 OK
+Connection: close
+Content-Type: application/json; charset=utf-8
+Date: Tue, 09 Jun 2026 00:44:31 GMT
+Server: Kestrel
+Transfer-Encoding: chunked
+
+[
+  {
+    "id": "1db743b4-9850-42e6-a4a9-108f03def383",
+    "name": "Street Fighter II",
+    "genre": "Fighting",
+    "price": 19.99,
+    "releaseDate": "1992-07-15"
+  },
+...
+  {
+    "id": "cc939d7e-417e-4a6e-a103-e790b9b4cecf",
+    "name": "Minecraft",
+    "genre": "Roleplaying",
+    "price": 19.99,
+    "releaseDate": "2011-11-18"
+  }
+]
+```
