@@ -1,7 +1,7 @@
 GET http://localhost:5065/games
 
 ###
-GET http://localhost:5065/games/ef74c558-94c6-4346-8fb9-15410cb8c96d
+GET http://localhost:5065/games/fe9963b5-a79c-4f4b-a6d7-131aeb778a8f
 
 ###
 POST http://localhost:5065/games
@@ -27,3 +27,6 @@ Content-Type: application/json
 
 ###
 DELETE http://localhost:5065/games/583a7003-1113-4877-8a68-24f15ea233df
+
+###
+GET http://localhost:5065/genres

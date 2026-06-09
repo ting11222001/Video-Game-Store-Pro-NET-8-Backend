@@ -52,13 +52,28 @@ List<Game> games = [
 ];
 
 // GET /games
-app.MapGet("/games", () => games);
+app.MapGet("/games", () => games.Select(game => new GameSummaryDto(
+    game.Id,
+    game.Name,
+    game.Genre.Name,
+    game.Price,
+    game.ReleaseDate
+)));
 
 // GET /games/{id}
 app.MapGet("games/{id}", (Guid id) =>
 {
     Game? game = games.Find(game => game.Id == id);
-    return game is null ? Results.NotFound() : Results.Ok(game);
+    return game is null ? Results.NotFound() : Results.Ok(
+        new GameDetailsDto(
+            game.Id,
+            game.Name,
+            game.Genre.Id,
+            game.Price,
+            game.ReleaseDate,
+            game.Description
+        )
+    );
 })
 .WithName(GetGameEndpointName);
 
@@ -100,4 +115,30 @@ app.MapDelete("/games/{id}", (Guid id) =>
     return Results.NoContent();
 });
 
+// GET /genres
+app.MapGet("/genres", () => genres.Select(
+    genre => new GenreDto(genre.Id, genre.Name)));
+
 app.Run();
+
+// DTO for returning game details without exposing the Genre object
+public record GameDetailsDto(
+    Guid Id,
+    string Name,
+    Guid GenreId,
+    decimal Price,
+    DateOnly ReleaseDate,
+    string Description
+);
+
+// DTO for returning game summaries in the list endpoint
+public record GameSummaryDto(
+    Guid Id,
+    string Name,
+    string Genre,
+    decimal Price,
+    DateOnly ReleaseDate
+);
+
+// DTO for returning genre information
+public record GenreDto(Guid Id, string Name);

@@ -1021,3 +1021,120 @@ Content-Type: application/json
 So I need a way to define what's exposed to the client.
 
 ### Understanding Data Transfer Objects
+
+A Data Transfer Object (DTO) is an object that carries data between processes or applications.
+
+In the context of a REST API, a DTO can be considered a contract between the client and server.
+
+Always return a specific shape of data to the client.
+
+### Using DTOs with GET requests
+
+In `Program.cs`, the get specific game currently looks like this:
+```csharp
+// GET /games/{id}
+app.MapGet("games/{id}", (Guid id) =>
+{
+    Game? game = games.Find(game => game.Id == id);
+    return game is null ? Results.NotFound() : Results.Ok(game);
+})
+.WithName(GetGameEndpointName);
+```
+
+Create a `Record` type for this DTO:
+```csharp
+public record GameDetailsDto(
+    Guid Id,
+    string Name,
+    Guid GenreId,
+    decimal Price,
+    DateOnly ReleaseDate,
+    string Description
+);
+```
+
+Records are immutable - once it's created, it cannot be changed anymore. It makes our life easier when setting the properties too, like we can use one line instead of setting up any constructors, or getters, or setters like `Class`.
+
+Then, replace the returned `game` in `GET /games/{id}` endpoint:
+```csharp
+// GET /games/{id}
+app.MapGet("games/{id}", (Guid id) =>
+{
+    Game? game = games.Find(game => game.Id == id);
+    return game is null ? Results.NotFound() : Results.Ok(
+        new GameDetailsDto(
+            game.Id,
+            game.Name,
+            game.Genre.Id,
+            game.Price,
+            game.ReleaseDate,
+            game.Description
+        )
+    );
+})
+.WithName(GetGameEndpointName);
+```
+
+Then, all update the `GET /games` endpoint - basically change each `game` in this `games` list into the `GameSummaryDto`:
+```csharp
+// Old: GET /games
+app.MapGet("/games", () => games);
+
+// New: GET /games
+app.MapGet("/games", () => games.Select(game => new GameSummaryDto(
+    game.Id,
+    game.Name,
+    game.Genre.Name, // note: it's a string now, so return the name of the Genre
+    game.Price,
+    game.ReleaseDate
+)));
+
+public record GameSummaryDto(
+    Guid Id,
+    string Name,
+    string Genre,
+    decimal Price,
+    DateOnly ReleaseDate
+);
+```
+
+Then, test it and I should see the `genre` property is returning a string, regardless now it's been changed to a composite property as client doesn't need to know how we store things internally.
+
+Then, add a new endpoint to get all genres:
+```csharp
+// GET /genres
+app.MapGet("/genres", () => genres.Select(
+    genre => new GenreDto(genre.Id, genre.Name)));
+
+// DTO for returning genre information
+public record GenreDto(Guid Id, string Name);
+```
+
+Test it and it prints as expected:
+```
+HTTP/1.1 200 OK
+Connection: close
+Content-Type: application/json; charset=utf-8
+Date: Tue, 09 Jun 2026 00:14:27 GMT
+Server: Kestrel
+Transfer-Encoding: chunked
+
+[
+  {
+    "id": "d8a77400-e414-4e5a-a695-c3ec90ce6177",
+    "name": "Fighting"
+  },
+  {
+    "id": "b8a77400-e414-4e5a-a695-c3ec90ce6177",
+    "name": "Roleplaying"
+  },
+  {
+    "id": "c8a77400-e414-4e5a-a695-c3ec90ce6177",
+    "name": "Sports"
+  },
+  {
+    "id": "d8a77400-e414-4e5a-a695-c3ec90ce6178",
+    "name": "Racing"
+  }
+]
+```
