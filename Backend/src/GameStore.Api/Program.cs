@@ -10,7 +10,7 @@ const string GetGameEndpointName = "GetGame";
 GameStoreData data = new();
 
 // GET /games
-app.MapGet("/games", () => games.Select(game => new GameSummaryDto(
+app.MapGet("/games", () => data.GetGames().Select(game => new GameSummaryDto(
     game.Id,
     game.Name,
     game.Genre.Name,
@@ -21,7 +21,7 @@ app.MapGet("/games", () => games.Select(game => new GameSummaryDto(
 // GET /games/{id}
 app.MapGet("games/{id}", (Guid id) =>
 {
-    Game? game = games.Find(game => game.Id == id);
+    Game? game = data.GetGame(id);
     return game is null ? Results.NotFound() : Results.Ok(
         new GameDetailsDto(
             game.Id,
@@ -38,7 +38,7 @@ app.MapGet("games/{id}", (Guid id) =>
 // POST /games
 app.MapPost("/games", (CreateGameDto gameDto) =>
 {
-    Genre? genre = genres.Find(g => g.Id == gameDto.GenreId);
+    Genre? genre = data.GetGenre(gameDto.GenreId);
     if (genre is null)
     {
         return Results.BadRequest("Invalid genre ID.");
@@ -46,7 +46,6 @@ app.MapPost("/games", (CreateGameDto gameDto) =>
 
     Game game = new Game
     {
-        Id = Guid.NewGuid(),
         Name = gameDto.Name,
         Genre = genre,
         Price = gameDto.Price,
@@ -54,7 +53,7 @@ app.MapPost("/games", (CreateGameDto gameDto) =>
         Description = gameDto.Description
     };
 
-    games.Add(game);
+    data.AddGame(game);
     return Results.CreatedAtRoute(
         GetGameEndpointName,
         new { id = game.Id },
@@ -73,13 +72,13 @@ app.MapPost("/games", (CreateGameDto gameDto) =>
 // PUT /games/{id}
 app.MapPut("/games/{id}", (Guid id, UpdateGameDto gameDto) =>
 {
-    Game? existingGame = games.Find(game => game.Id == id);
+    Game? existingGame = data.GetGame(id);
     if (existingGame is null)
     {
         return Results.NotFound();
     }
 
-    Genre? genre = genres.Find(genre => genre.Id == gameDto.GenreId);
+    Genre? genre = data.GetGenre(gameDto.GenreId);
 
     if (genre is null)
     {
@@ -99,12 +98,12 @@ app.MapPut("/games/{id}", (Guid id, UpdateGameDto gameDto) =>
 // DELETE /games/{id}
 app.MapDelete("/games/{id}", (Guid id) =>
 {
-    games.RemoveAll(game => game.Id == id);
+    data.RemoveGame(id);
     return Results.NoContent();
 });
 
 // GET /genres
-app.MapGet("/genres", () => genres.Select(
+app.MapGet("/genres", () => data.GetGenres().Select(
     genre => new GenreDto(genre.Id, genre.Name)));
 
 app.Run();
