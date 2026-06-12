@@ -1820,3 +1820,92 @@ public record class CreateGameDtos       // <-- the box (outer container)
     { ... }
 }
 ```
+
+### Using route groups
+
+So now I have this in `Program.cs`:
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+var app = builder.Build();
+
+GameStoreData data = new();
+
+// GET /games
+app.MapGetGames(data);
+
+// GET /games/{id}
+app.MapGetGame(data);
+
+// POST /games
+app.MapCreateGame(data);
+
+// PUT /games/{id}
+app.MapUpdateGame(data);
+
+// DELETE /games/{id}
+app.MapDeleteGame(data);
+
+// GET /genres
+app.MapGetGenres(data);
+
+app.Run();
+```
+
+But these endpoints can get really long, so I need a new extension method class called `GamesEndpoints`.
+
+And with the `group` I can make the url even easier:
+```csharp
+// Program.cs
+var builder = WebApplication.CreateBuilder(args);
+var app = builder.Build();
+
+GameStoreData data = new();
+
+app.MapGames(data);
+app.MapGenres(data);
+
+app.Run();
+
+// GamesEndpoints.cs
+public static class GamesEndpoints
+{
+  public static void MapGames (
+      this IEndpointRouteBuilder app,
+      GameStoreData data
+  )
+  {
+    // Route group
+    var group = app.MapGroup("/games");
+
+    group.MapGetGames(data);
+
+// GetGamesEndpoint.cs
+public static class GetGamesEndpoint
+{
+  public static void MapGetGames(this IEndpointRouteBuilder app, GameStoreData data)
+  {
+    // GET /games
+    app.MapGet("/", () => data.GetGames().Select(game => new GameSummaryDto(
+```
+
+
+#### Why I can write `app.MapGames(data);` instead of `GamesEndpoints.MapGames(app, data);` in `Program.cs`
+
+The key is the `this` keyword in the first parameter.
+```csharp
+public static void MapGames(this IEndpointRouteBuilder app, GameStoreData data)
+```
+
+When you add `this` before a parameter, C# treats that method as belonging to that type. So instead of calling it like a regular static method:
+```csharp
+GamesEndpoints.MapGames(app, data);  // "Hey GamesEndpoints class, run MapGames"
+```
+
+You can call it as if `app` owns the method:
+```csharp
+app.MapGames(data);  // "Hey app, run MapGames"
+```
+
+Both lines do the exact same thing. The compiler converts `app.MapGames(data)` into `GamesEndpoints.MapGames(app, data)` behind the scenes.
+
+Also, `app` in `Program.cs` is a `WebApplication`. That type implements `IEndpointRouteBuilder`. Your extension method targets `IEndpointRouteBuilder`. So `app` qualifies.

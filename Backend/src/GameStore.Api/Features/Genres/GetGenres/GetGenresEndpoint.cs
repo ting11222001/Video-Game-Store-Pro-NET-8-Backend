@@ -9,8 +9,7 @@ public static class GetGenresEndpoint
         this IEndpointRouteBuilder app,
         GameStoreData data)
     {
-        // GET /genres
-        app.MapGet("/genres", () => data.GetGenres().Select(
+        app.MapGet("/", () => data.GetGenres().Select(
             genre => new GenreDto(genre.Id, genre.Name)));
     }
 }

@@ -10,8 +10,7 @@ public static class UpdateGameEndpoint
         this IEndpointRouteBuilder app, 
         GameStoreData data)
     {
-        // PUT /games/{id}
-        app.MapPut("/games/{id}", (Guid id, UpdateGameDto gameDto) =>
+        app.MapPut("/{id}", (Guid id, UpdateGameDto gameDto) =>
         {
             Game? existingGame = data.GetGame(id);
             if (existingGame is null)
