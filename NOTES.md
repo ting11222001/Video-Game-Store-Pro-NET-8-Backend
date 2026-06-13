@@ -1909,3 +1909,102 @@ app.MapGames(data);  // "Hey app, run MapGames"
 Both lines do the exact same thing. The compiler converts `app.MapGames(data)` into `GamesEndpoints.MapGames(app, data)` behind the scenes.
 
 Also, `app` in `Program.cs` is a `WebApplication`. That type implements `IEndpointRouteBuilder`. Your extension method targets `IEndpointRouteBuilder`. So `app` qualifies.
+
+### Knowledge check
+
+#### What is one of the main advantages of using Vertical Slice Architecture over n-tier architecture?
+
+It allows each feature to be implemented within a single cohesive unit, reducing unnecessary abstraction.
+
+#### What is a primary benefit of using extension methods in C#?
+
+They allow new methods to be added to existing types without modifying their original type.
+
+Extension methods provide a way to "extend" a class by adding new methods without altering the class's original code or structure. This is especially useful for built-in or third-party classes that can't be changed directly.
+
+In this module, MapGetGame is added to IEndpointRouteBuilder to add routing functionality in a modular way. It looks like a native method of IEndpointRouteBuilder, promoting cleaner and more readable code without modifying the original class.
+
+#### What is one of the main benefits of using route groups in ASP.NET Core Minimal APIs?
+
+They reduce redundancy by applying a common route prefix and settings to multiple endpoints.
+
+## Dependency Injection
+
+### Understanding dependency injection
+
+#### What is a Dependency?
+
+`MyService` → LogThis("foo") → `MyLogger` (DEPENDENCY)
+
+```csharp
+public MyService()
+{
+    var logger = new MyLogger();
+    logger.LogThis("I'm Ready!");
+}
+```
+
+↓
+
+```csharp
+public MyService()
+{
+    var writter = new MyFileWritter("output.log");
+    var logger = new MyLogger(writter);
+    logger.LogThis("I'm Ready!");
+}
+```
+
+> this is known as dependency injection because when `MyLogger` now needs a new dependency e.g. be passed in a `MyFileWriter` instance i.e. `output.log`, `MyService` needs to be updated accordingly.
+
+**Problems**
+- `MyService` is tightly coupled to the Logger dependency. Any changes to `MyLogger` require changes to `MyService`.
+- MyService needs to know how to construct and configure the `MyLogger` dependency.
+- It's hard to test `MyService` since the `MyLogger` dependency cannot be mocked or stubbed.
+
+#### What is Dependency Injection?
+
+`MyService` → LogThis("foo") → `MyLogger` (DEPENDENCY)
+
+It means `MyService` has `MyLogger` as a dependency so it can output the log using `LogThis`.
+
+```csharp
+public MyService(MyLogger logger)
+{
+    logger.LogThis("I'm Ready!");
+}
+```
+
+**Service Container**
+- `MyLogger` → Register → `IServiceProvider`
+- `Another Dependency` → Register → `IServiceProvider`
+- `IServiceProvider` resolves, constructs and injects dependencies when there is a HTTP Request and it will constructs `MyService` and `MyService` dependencies together.
+
+
+**Benefits**
+- `MyService` won't be affected by changes to its dependencies.
+- `MyService` doesn't need to know how to construct or configure its dependencies.
+- Dependencies can also be injected as parameters to minimal API endpoints.
+- Opens the door to using Dependency Inversion.
+
+#### Using Dependency Inversion
+
+**The Dependency Inversion Principle**
+> "Code should depend on abstractions as opposed to concrete implementations."
+
+**Diagram**
+- `MyService` ~~depends on~~ `MyLogger` ❌
+- `MyService` depends on `ILogger` (abstraction)
+- `MyLogger`, `CloudLogger`, `ConsoleLogger`, `DBLogger` all implement `ILogger`
+
+```csharp
+public MyService(ILogger logger)
+{
+    logger.LogThis("I'm Ready!");
+}
+```
+
+**Benefits**
+- The logger dependency can be swapped out for a different implementation without modifying `MyService`.
+- It's easier to test `MyService` since the logger dependency can be mocked or stubbed.
+- Code is cleaner, easier to modify and easier to reuse.
