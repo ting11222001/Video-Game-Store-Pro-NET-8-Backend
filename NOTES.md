@@ -2057,3 +2057,60 @@ The **IServiceProvider** resolves, constructs, and injects **one MyLogger instan
 > Singleton lifetime services are created the first time they are requested and reused across the application lifetime.
 
 ### Using transient services
+
+Start by replacing the `GameStoreData` to be registered in a service container in `Program.cs`.
+
+Instead of passing `data` layer by layer:
+```csharp
+// Program.cs
+GameStoreData data = new();
+app.MapGames(data);
+
+// GamesEndpoints.cs
+public static class GamesEndpoints
+{
+    public static void MapGames (
+        this IEndpointRouteBuilder app,
+        GameStoreData data
+    )
+    {
+        // Route group
+        var group = app.MapGroup("/games");
+
+        // GET /games
+        group.MapGetGames(data);
+        ...
+    }
+}
+
+// GetGamesEndpoint.cs
+public static class GetGamesEndpoint
+{
+    public static void MapGetGames(this IEndpointRouteBuilder app, GameStoreData data)
+    {
+        app.MapGet("/", () => data.GetGames().Select(game => new GameSummaryDto(
+            game.Id,
+            game.Name,
+            game.Genre.Name,
+            game.Price,
+            game.ReleaseDate
+        )));
+    }
+}
+```
+
+I can register a service container with `GameStoreData` in it (note that this service container needs to be registered before the `app`, i.e. the web application builder is built), and removed the passing-down `data`. At the final level, in `app.MapGet` I can directly say I need a `GameStoreData data` in the delegate function parameter, and .NET will be smart enough to find it in the service container:
+```csharp
+// Program.cs
+
+// GamesEndpoints.cs
+
+// GetGamesEndpoint.cs
+```
+
+But remember that transient service means there will be new instances created per HTTP request?
+
+So if I test the apis by creating a new game which will be successfully created and added to the `GameStoreData`, but when I run `get games` endpoint, the newly added game will not be shown, and all the `game` record Id keeps being updated when the `get games` endpoint is triggered.
+
+I can put a breakpint in `GameStoreData.cs` the `games` line, and then keep clicking on `get games` send request to see how each request will trigger a new `GameStoreData` object to be constructed.
+

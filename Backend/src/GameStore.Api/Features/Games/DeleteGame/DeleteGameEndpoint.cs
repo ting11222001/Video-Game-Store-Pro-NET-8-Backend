@@ -4,12 +4,9 @@ namespace GameStore.Api.Features.Games.DeleteGame;
 
 public static class DeleteGameEndpoint
 {
-    public static void MapDeleteGame(
-        this IEndpointRouteBuilder app,
-        GameStoreData data
-    )
+    public static void MapDeleteGame(this IEndpointRouteBuilder app)
         {
-            app.MapDelete("/{id}", (Guid id) =>
+            app.MapDelete("/{id}", (Guid id, GameStoreData data) =>
             {
                 data.RemoveGame(id);
                 return Results.NoContent();
