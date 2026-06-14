@@ -9,7 +9,7 @@ public static class CreateGameEndpoint
 {
     public static void MapCreateGame(this IEndpointRouteBuilder app)
     {
-        app.MapPost("/", (CreateGameDto gameDto, GameStoreData data) =>
+        app.MapPost("/", (CreateGameDto gameDto, GameStoreData data, GameDataLogger logger) =>
         {
             Genre? genre = data.GetGenre(gameDto.GenreId);
             if (genre is null)
@@ -27,6 +27,9 @@ public static class CreateGameEndpoint
             };
 
             data.AddGame(game);
+
+            // Call the logger
+            logger.PrintGames();
             
             return Results.CreatedAtRoute(
                 EndpointName.GetGame,

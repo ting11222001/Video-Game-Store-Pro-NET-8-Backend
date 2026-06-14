@@ -2102,10 +2102,46 @@ public static class GetGamesEndpoint
 I can register a service container with `GameStoreData` in it (note that this service container needs to be registered before the `app`, i.e. the web application builder is built), and removed the passing-down `data`. At the final level, in `app.MapGet` I can directly say I need a `GameStoreData data` in the delegate function parameter, and .NET will be smart enough to find it in the service container:
 ```csharp
 // Program.cs
+var builder = WebApplication.CreateBuilder(args);
+
+// REGISTER SERVICES HERE
+builder.Services.AddTransient<GameStoreData>();
+
+var app = builder.Build();
+
+app.MapGames();
+app.MapGenres();
+
+app.Run();
 
 // GamesEndpoints.cs
+public static class GamesEndpoints
+{
+    public static void MapGames (this IEndpointRouteBuilder app)
+    {
+        // Route group
+        var group = app.MapGroup("/games");
+
+        // GET /games
+        group.MapGetGames();
+        ...
+    }
+}
 
 // GetGamesEndpoint.cs
+public static class GetGamesEndpoint
+{
+    public static void MapGetGames(this IEndpointRouteBuilder app)
+    {
+        app.MapGet("/", (GameStoreData data) => data.GetGames().Select(game => new GameSummaryDto(
+            game.Id,
+            game.Name,
+            game.Genre.Name,
+            game.Price,
+            game.ReleaseDate
+        )));
+    }
+}
 ```
 
 But remember that transient service means there will be new instances created per HTTP request?
@@ -2114,3 +2150,144 @@ So if I test the apis by creating a new game which will be successfully created 
 
 I can put a breakpint in `GameStoreData.cs` the `games` line, and then keep clicking on `get games` send request to see how each request will trigger a new `GameStoreData` object to be constructed.
 
+### Using scoped services
+
+Create `src/Data/GameDataLogger` and create a method to print all the `games` in the games collection in the `GameStoreData`.
+
+Putting `GameStoreData` in the `GameDataLogger` constructor, we can receive it from dependency injection. And use `Quick fix` to make those `data` and `logger` into primary constructors so that we can use them across this class without having to assign them to a private variable first.
+
+```csharp
+// old
+public class GameDataLogger
+{
+    public GameDataLogger(GameStoreData data, ILogger<GameDataLogger> logger)
+    {
+        
+    }
+}
+
+// new
+public class GameDataLogger(GameStoreData data, ILogger<GameDataLogger> logger)
+{
+  ...
+}
+```
+
+And, add `PringGames()` as the method in `GameDataLogger`.
+
+Then, register this `GameDataLogger` to a service container in `Program.cs`. Use `AddTransient` for now.
+
+Use this `GameDataLogger` in `CreateGameEndpoint`, right after `data.AddGame(game);`.
+
+```csharp
+// Program.cs
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddTransient<GameDataLogger>();
+builder.Services.AddTransient<GameStoreData>();
+
+var app = builder.Build();
+
+app.MapGames();
+app.MapGenres();
+
+app.Run();
+
+
+// CreateGameEndpoint.cs
+
+public static class CreateGameEndpoint
+{
+    public static void MapCreateGame(this IEndpointRouteBuilder app)
+    {
+        app.MapPost("/", (CreateGameDto gameDto, GameStoreData data, GameDataLogger logger) =>
+        {
+            Genre? genre = data.GetGenre(gameDto.GenreId);
+            if (genre is null)
+            {
+                return Results.BadRequest("Invalid genre ID.");
+            }
+
+            Game game = new Game
+            {
+                Name = gameDto.Name,
+                Genre = genre,
+                Price = gameDto.Price,
+                ReleaseDate = gameDto.ReleaseDate,
+                Description = gameDto.Description
+            };
+
+            data.AddGame(game);
+
+            // Call the logger
+            logger.PrintGames();
+            
+            return Results.CreatedAtRoute(
+                EndpointName.GetGame,
+                new { id = game.Id },
+                new GameDetailsDto(
+                    game.Id,
+                    game.Name,
+                    game.Genre.Id,
+                    game.Price,
+                    game.ReleaseDate,
+                    game.Description
+                )
+            );
+        })
+        .WithParameterValidation();
+    }
+}
+
+```
+
+When testing the `POST` api (as I just added the `GameDataLogger` in `CreateGameEndpoint`), somehow this newly added game won't show in the terminal log.
+
+```bash
+// The new game is created
+HTTP/1.1 201 Created
+Connection: close
+Content-Type: application/json; charset=utf-8
+Date: Sun, 14 Jun 2026 12:57:44 GMT
+Server: Kestrel
+Location: http://localhost:5065/games/086e103a-006f-4095-94c1-3614d1ee1097
+Transfer-Encoding: chunked
+
+{
+  "id": "086e103a-006f-4095-94c1-3614d1ee1097",
+  "name": "Minecraft",
+  "genreId": "4e179397-c3f1-45ec-a271-c26f07ff64f3",
+  "price": 19.99,
+  "releaseDate": "2011-11-18",
+  "description": "A sandbox game that allows players to build and explore virtual worlds made of blocks."
+}
+
+// but in the terminal it's not added to the `data` collection:
+info: GameStore.Api.Data.GameDataLogger[0]
+      Game Id: a9a30300-6fe3-4e74-ab25-a0190e5935cb | Game Name: Street Fighter II
+info: GameStore.Api.Data.GameDataLogger[0]
+      Game Id: 34c59dcc-ae29-4ec7-b54d-05ae91b6434f | Game Name: Final Fantasy XIV
+info: GameStore.Api.Data.GameDataLogger[0]
+      Game Id: b30f4e10-7aab-40e7-aad7-19c72b8fb7d5 | Game Name: FIFA 23
+```
+
+Because `GameDataLogger` is getting another `GameStoreData` instance (I used `transient` in `Program.cs`):
+```csharp
+builder.Services.AddTransient<GameDataLogger>();
+builder.Services.AddTransient<GameStoreData>();
+```
+
+So even though I called the logger after the new game is added, the POST endpoint's `data` here is going to be different from the `GameDataLogger`'s data:
+```csharp
+// In CreateGameEndpoint.cs, this `data` instance is going to be different from the one injected into logger when the logger is constructed:
+data.AddGame(game);
+
+logger.PrintGames();
+
+// In GameDataLogger.cs, when the logger is constructed in GameDataLogger, it's getting another data instance:
+public class GameDataLogger(GameStoreData data, ILogger<GameDataLogger> logger)
+```
+
+Try changing the `GameStoreData` to `AddScoped`:
+```csharp
+```
