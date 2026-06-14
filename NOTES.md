@@ -2277,17 +2277,87 @@ builder.Services.AddTransient<GameDataLogger>();
 builder.Services.AddTransient<GameStoreData>();
 ```
 
-So even though I called the logger after the new game is added, the POST endpoint's `data` here is going to be different from the `GameDataLogger`'s data:
+So even though I called the logger after the new game is added, the POST endpoint's `GameStoreData` here is going to be different from the `GameDataLogger`'s data:
 ```csharp
-// In CreateGameEndpoint.cs, this `data` instance is going to be different from the one injected into logger when the logger is constructed:
+// In CreateGameEndpoint.cs, this `GameStoreData` instance is going to be different from the one injected into logger when the logger is constructed:
 data.AddGame(game);
 
 logger.PrintGames();
 
-// In GameDataLogger.cs, when the logger is constructed in GameDataLogger, it's getting another data instance:
+// In GameDataLogger.cs, when the logger is constructed in GameDataLogger, it's getting another GameStoreData instance:
 public class GameDataLogger(GameStoreData data, ILogger<GameDataLogger> logger)
 ```
 
-Try changing the `GameStoreData` to `AddScoped`:
+Try changing the `GameStoreData` to `AddScoped` in `CreateGameEndpoint`, so it means that the POST endpoint itself should receive one instance of `GameStoreData`, and also anything from its body of request should also receive the same `GameStoreData`:
 ```csharp
+// In Program.cs
+builder.Services.AddTransient<GameDataLogger>();
+builder.Services.AddScoped<GameStoreData>();
 ```
+
+So test the POST endpoint again - the newly created game is now logged successfully in the terminal:
+```bash
+HTTP/1.1 201 Created
+Connection: close
+Content-Type: application/json; charset=utf-8
+Date: Sun, 14 Jun 2026 13:13:54 GMT
+Server: Kestrel
+Location: http://localhost:5065/games/ee29a508-05c2-4e80-aba5-db94fafa5fb8
+Transfer-Encoding: chunked
+
+{
+  "id": "ee29a508-05c2-4e80-aba5-db94fafa5fb8",
+  "name": "Minecraft",
+  "genreId": "4e179397-c3f1-45ec-a271-c26f07ff64f3",
+  "price": 19.99,
+  "releaseDate": "2011-11-18",
+  "description": "A sandbox game that allows players to build and explore virtual worlds made of blocks."
+}
+
+info: GameStore.Api.Data.GameDataLogger[0]
+      Game Id: fbe46154-bc9c-4ebc-9671-f3c1678f3485 | Game Name: Street Fighter II
+info: GameStore.Api.Data.GameDataLogger[0]
+      Game Id: 4a653976-eb1a-4cbf-873c-b7ce4e15e7a9 | Game Name: Final Fantasy XIV
+info: GameStore.Api.Data.GameDataLogger[0]
+      Game Id: 63b978de-97a5-4762-a7a7-6c30c9653d4a | Game Name: FIFA 23
+info: GameStore.Api.Data.GameDataLogger[0]
+      Game Id: ee29a508-05c2-4e80-aba5-db94fafa5fb8 | Game Name: Minecraft
+```
+
+But remember after this `POST` request is done, any future requests will receive a brand new `GameStoreData` instance again.
+
+Like if I run `GetGames` endpoint, then I will see a new `GameStoreData` instance is constructed which will not have my newly added game:
+```bash
+HTTP/1.1 200 OK
+Connection: close
+Content-Type: application/json; charset=utf-8
+Date: Sun, 14 Jun 2026 13:16:52 GMT
+Server: Kestrel
+Transfer-Encoding: chunked
+
+[
+  {
+    "id": "22b271f1-811b-43be-a5b0-ac4d372a55a3",
+    "name": "Street Fighter II",
+    "genre": "Fighting",
+    "price": 19.99,
+    "releaseDate": "1992-07-15"
+  },
+  {
+    "id": "ca5d7ecf-1e15-477c-ac3e-05a444ff7be6",
+    "name": "Final Fantasy XIV",
+    "genre": "Roleplaying",
+    "price": 59.99,
+    "releaseDate": "2010-09-30"
+  },
+  {
+    "id": "5b6173f7-7283-4fde-8a82-66a7f6e00d10",
+    "name": "FIFA 23",
+    "genre": "Sports",
+    "price": 69.99,
+    "releaseDate": "2022-09-27"
+  }
+]
+```
+
+I can add breakpoints over `CreateGameEndpoint`, `GameDataLogger` and `GameStoreData` and hit F5 to see when they're being called after I click `Send Request` on POST and GET Games endpoints in `gamestore.http`.
