@@ -10,7 +10,7 @@ public static class GetGamesEndpoint
         app.MapGet("/", (GameStoreData data) => data.GetGames().Select(game => new GameSummaryDto(
             game.Id,
             game.Name,
-            game.Genre.Name,
+            game.Genre!.Name,
             game.Price,
             game.ReleaseDate
         )));

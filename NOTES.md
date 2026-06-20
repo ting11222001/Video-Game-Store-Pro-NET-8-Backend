@@ -2550,3 +2550,83 @@ Flow:
 2. Entity Framework Core sends SQL statements to Database
 3. Database returns resulting data to Entity Framework Core
 4. Entity Framework Core returns resulting objects to REST API
+
+### Preparing the data model for EF Core
+
+Before adding EF Core database support, add some changes to the data model e.g. adding relationship between Game and Genre.
+
+We need a foreign key from Game into Genre.
+
+So whenever we create a Game, it has to have a valid Genre that actually exists in the database.
+
+In `Game.cs`:
+```csharp
+// old
+public required Genre Genre { get; set; } // even though this is enough for EF core to infer the relationship, it's better to do the below
+
+// new
+public Genre? Genre { get; set; } // nullable: for performance, we may not want to load the genres along with the games
+public Guid GenreId { get; set; } // FK: add this explicit foreign key, so EF core will automatically populate Genre for the Game
+```
+
+Then `GetGameEndpoint` will have a warning:
+```csharp
+// old
+game.Genre.Id, // warning: 'Genre' may be null here.
+
+// new
+game.GenreId,
+```
+
+In `GetGamesEndpoint` we can use null forgiveness operator because in `GameStoreData` we always assign a Genre to a Game.
+```csharp
+// old
+game.Genre.Name,
+
+// new
+game.Genre!.Name,
+```
+
+Also, update `GameStoreData` to add the new `GenreId` field to the `Game`:
+```csharp
+    public GameStoreData()
+    {
+        games =
+        [
+            new Game {
+                Id = Guid.NewGuid(),
+                Name = "Street Fighter II",
+                Genre = genres[0],
+                GenreId = genres[0].Id,
+                ...
+```
+
+Update `CreateGameEndpoint` to add the new `GenreId` field to the `Game`:
+```csharp
+public static class CreateGameEndpoint
+{
+    public static void MapCreateGame(this IEndpointRouteBuilder app)
+    {
+        app.MapPost("/", (CreateGameDto gameDto, GameStoreData data, GameDataLogger logger) =>
+        {
+            Genre? genre = data.GetGenre(gameDto.GenreId);
+            if (genre is null)
+            {
+                return Results.BadRequest("Invalid genre ID.");
+            }
+
+            Game game = new Game
+            {
+                Name = gameDto.Name,
+                Genre = genre,
+                GenreId = genre.Id,
+                ...
+```
+
+Update `UpdateGameEndpoint` to add the new `GenreId` field to the `existingGame`:
+```csharp
+// add
+existingGame.GenreId = genre.Id;
+```
+
+### Creating the DBContext

@@ -23,6 +23,7 @@ public class GameStoreData
                 Id = Guid.NewGuid(),
                 Name = "Street Fighter II",
                 Genre = genres[0],
+                GenreId = genres[0].Id,
                 Price = 19.99m,
                 ReleaseDate = new DateOnly(1992, 7, 15),
                 Description = "Street Fighter 2, the most iconic fighting game of all time, is back on the Nintendo Switch! The newest iteration of SFII in nearly 10 years, Ultra Street Fighter 2 features all of the classic characters, a host of new single player and multiplayer features, as well as two new fighters: Evil Ryu and Violent Ken!"
