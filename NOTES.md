@@ -2685,7 +2685,6 @@ So this single line is doing two jobs:
 
 #### The simple idea - what DbContext is
 
-
 DbContext is the bridge between your C# code and your database, when you use Entity Framework Core (EF Core).
 
 Think of a library. You don't go into the back room and grab books off the shelves yourself. Instead, you talk to a librarian. You tell the librarian what you want, and they fetch it, add it, or remove it for you.
@@ -2693,7 +2692,6 @@ Think of a library. You don't go into the back room and grab books off the shelv
 DbContext is that librarian. Your database is the back room full of books (data). DbContext is the one class that knows how to talk to the database on your behalf, so your code never has to write raw SQL.
 
 ##### What it actually does
-
 
 A DbContext class in a .NET 8 project usually does three things:
 
@@ -2768,4 +2766,115 @@ context.SaveChanges();                     // both go to the database together
 
 So the tutorial's claim is: DbContext gives you `DbSet<T>` properties (acting like repositories for each table), and a `SaveChanges()` method (acting like a unit of work that commits everything together). That's why people describe it as both patterns combined into one class.
 
+#### `DbContext` and `Set<T>()`
+
+Think of `DbContext` as a folder, and `Set<T>()` as a labelled drawer inside it.
+
+Your `GameStoreContext` is the folder. Inside the folder, you need separate drawers for separate things: one for games, one for genres. You can't just dump everything in one place, or you couldn't find anything later.
+`Set<Game>()` is the method that opens the drawer labelled "Game". It hands you a box (the `DbSet<Game>`) that contains, or will contain, every game.
+
+```csharp
+public DbSet<Game> Games => Set<Game>();
+```
+
+is really saying: "When someone asks for Games, open the Game drawer using Set<Game>(), and give them that box."
+
+##### Why bother writing it this way instead of storing the box directly?
+
+You could imagine writing it like this instead:
+```csharp
+public DbSet<Game> Games = Set<Game>();
+```
+
+This doesn't work safely. The issue is about *when* code runs, not whether the folder exists.
+
+A normal field assignment with `=` runs once, during object construction, before the constructor body finishes setting things up. At that exact moment, `options` has only just been received. EF Core hasn't finished its internal setup yet (for example, it hasn't connected the model to a database provider). So calling `Set<Game>()` this early can fail or behave unpredictably.
+
+Using `=>` instead of `=` means: "Don't open the drawer now. Wait until someone actually asks for Games, then open it." By that point, the whole context is fully set up, so it's safe. This works because `DbSet` objects are usually obtained from a `DbSet` property on a derived `DbContext` or from the `Set` method. (Microsoft Learn)
+
+##### What is `=>` actually called?
+
+This is called an **expression-bodied member**, specifically an **expression-bodied property**.
+
+`public DbSet<Game> Games => Set<Game>();` is shorthand for:
+```csharp
+public DbSet<Game> Games
+{
+    get { return Set<Game>(); }
+}
+```
+
+So `=>` here means: "calculate this value by running this expression, every time it's accessed", rather than storing a fixed value.
+
+**Simple summary: `=` runs immediately and stores the result. `=>` waits and runs the code only when you ask for it.**
+
+Note: the `g => g.Price > 50` style below uses the same `=>` symbol, but it's called a **lambda expression**, not an expression-bodied member. Same symbol, different name, different purpose, depending on where it appears.
+
+##### What does Games actually let you do?
+
+Once you have the box, you can look through it or add to it:
+```csharp
+context.Games.Where(g => g.Price > 50);   // look through it
+context.Games.Add(newGame);               // add to it
+```
+
+This works because a `DbSet` can be used to query and save instances of the entity, and LINQ queries against it get translated into queries against the database. (Microsoft Learn)
+
+One simple summary sentence: `DbSet<Game>` is the box of games. `Set<Game>()` is how you get that box from the folder.
+
 ### Configuring the DBContext
+
+What service lifetime to use for a DbContext?
+- DbContext is designed to be used as a single Unit of Work
+- DbContext created --> entity changes tracked -> save changes -> dispose
+
+Why this flow:
+- DB connections are expensive
+- DbContext is not thread safe
+- Increased memory usage due to change tracking
+
+USE: Scoped service lifetime
+- Aligning the context lifetime to the lifetime of the request
+- There is only one thread executing each client request at a given time
+- Ensure each request gets a separate DbContext instance
+
+#### Two ways to register the DbContext in `Program.cs`
+
+##### Option 1 - Shorthand (SQLite only):
+```csharp
+var connString = "Data Source=GameStore.db";
+
+builder.Services.AddSqlite<GameStoreContext>(connString);
+```
+
+##### Option 2 - Verbose (any database provider):
+```csharp
+// I can't write this because I need to pass `options`:
+builder.Services.AddScoped<GameStoreContext>();
+
+// Revised:
+builder.Services.AddDbContext<GameStoreContext>(
+    options => options.UseSqlite(connString)    // UseSqlite is from using Microsoft.EntityFrameworkCore;
+);
+```
+
+Option 2 eventually uses an `options` builder. This matches how `GameStoreContext` is defined in `GameStoreContext.cs`. The class constructor takes `DbContextOptions<GameStoreContext> options` as a parameter and passes it up to the base `DbContext` class's `options`. 
+
+So when ASP.NET registers the context, it needs to build those options first. That is what the lambda `options => options.UseSqlite(connString)` does. It tells Entity Framework which database provider to use before creating the context.
+
+Option 1 is just a shortcut that does the same thing internally. Both approaches result in the same scoped `GameStoreContext` being available via dependency injection.
+
+**`GameStoreContext.cs`:**
+```csharp
+using System;
+using GameStore.Api.Models;
+using Microsoft.EntityFrameworkCore;
+
+namespace GameStore.Api.Data;
+
+public class GameStoreContext(DbContextOptions options)
+    : DbContext(options)
+{
+    // ...
+}
+```
