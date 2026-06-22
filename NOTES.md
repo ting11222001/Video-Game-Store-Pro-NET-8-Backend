@@ -1567,6 +1567,7 @@ This is because each Game object references `genres[0]`, `genres[3]`, etc. Those
 Start to replace the below in `Program.cs`.
 
 These are the same:
+
 ```csharp
 GameStoreData data = new();
 
@@ -1581,6 +1582,7 @@ app.MapGet("/games", () => data.GetGames().Select(game => new GameSummaryDto(
     game.ReleaseDate
 )));
 ```
+
 etc.
 
 #### Explanation - `.Select()` in LINQ
@@ -1605,14 +1607,18 @@ The `genre => new GenreDto(...)` part is a lambda. It is a small, inline functio
 To organise all the endpoints in `Program.cs` better, we're going to use this Vertical Slice Architecture.
 
 #### Structuring code the old way
+
 Layers:
+
 ```
 Presentation Layer
 Business Logic Layer
 Data Access Layer
 Database
 ```
+
 Create Game files per layer:
+
 ```
 Presentation: CreateGameDto.cs (request), GameDetailsDto.cs (response), GamesController.cs
 Business Logic: Game.cs, GamesService.cs, IGamesRepository.cs
@@ -1627,6 +1633,7 @@ Note: "Too many things to change across too many places"
 - Each slice contains everything needed for a specific feature
 
 So, structuring a slice like this:
+
 ```
 Input -> Handler -> Output
 (CreateGameDto -> CreateGameEndpoint -> GameDetailsDto)
@@ -1641,7 +1648,6 @@ Each feature is one folder. E.g. one for retrieving the full list of games.
 - `GetGamesDto`: this holds all the related DTOs of this feature. Moved from `Program.cs`.
 - `GetGamesEndpoint`: this holds all the related endpoints. Moved from `Program.cs`.
 
-
 #### Why making `GetGamesEndpoint` static
 
 Key points:
@@ -1654,6 +1660,7 @@ Key points:
 #### Why using `this IEndpointRouteBuilder app` in `public static void MapGetGames(this IEndpointRouteBuilder app, GameStoreData data)`
 
 First of all, when hovering over `MapGet()`, it shows this code hint:
+
 ```
 (extension) RouteHandlerBuilder IEndpointRouteBuilder.MapGet
 ```
@@ -1663,15 +1670,18 @@ So `MapGet` is one of the extension methods from `IEndpointRouteBuilder`.
 `IEndpointRouteBuilder` is Microsoft's type. app is an object of that type. Microsoft did not give it a `MapGetGames` method.
 
 So the tutorial adds one:
+
 ```csharp
 public static void MapGetGames(this IEndpointRouteBuilder app, GameStoreData data)
 ```
 
 This says: "add `MapGetGames` to `IEndpointRouteBuilder`, even though we do not own that type."
 Now you can write:
+
 ```csharp
 app.MapGetGames(data);
 ```
+
 As if Microsoft put it there themselves.
 
 ##### A simpler example
@@ -1684,6 +1694,7 @@ name.Shout(); // you want this to work
 ```
 
 `string` is Microsoft's class. You cannot add `Shout` to it. But with an extension method you can:
+
 ```csharp
 public static class StringExtensions
 {
@@ -1701,6 +1712,7 @@ Now `name.Shout()` works. You did not touch Microsoft's `string` class at all.
 A feature to get a game by id and another feature to create a brand new game.
 
 Create `Constants/EndpointName`:
+
 ```csharp
 public static class EndpointName
 {
@@ -1715,6 +1727,7 @@ Think of a regular class like a cookie cutter. You use it to make individual coo
 A static class is different. It is not a cookie cutter. It is more like a notice board. The notice board exists on its own. You do not make copies of it. You just walk up to it and read what is there.
 
 Because `EndpointName` is `static`, you refer to it directly by its name, like reading a sign on a wall:
+
 ```csharp
 EndpointName.GetGame
 // "Go to the EndpointName notice board. Read the GetGame sign."
@@ -1756,11 +1769,11 @@ public static class MathHelper
 Your `GetGameEndpoint` is the same idea. It's just wiring up a route. No data stored inside it. So `static` makes sense.
 
 So:
+
 - When Needs to store and manage its own data: Instance (non-static)
 - When Needs to be injected as a dependency: Instance (non-static)
 - Just doing a job, no memory needed: static
 - Shared utility or helper functions: static
-
 
 Why does OOP work this way?
 
@@ -1782,6 +1795,7 @@ Key points:
 - Plays nicely with ASP.NET Core's JSON serialiser.
 
 For example:
+
 ```csharp
 // Record DTO (positional syntax)
 public record UserDto(int Id, string Name);
@@ -1799,7 +1813,6 @@ public class UserDto
     }
 }
 ```
-
 
 ### Adding the final slices
 
@@ -1824,6 +1837,7 @@ public record class CreateGameDtos       // <-- the box (outer container)
 ### Using route groups
 
 So now I have this in `Program.cs`:
+
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
 var app = builder.Build();
@@ -1854,6 +1868,7 @@ app.Run();
 But these endpoints can get really long, so I need a new extension method class called `GamesEndpoints`.
 
 And with the `group` I can make the url even easier:
+
 ```csharp
 // Program.cs
 var builder = WebApplication.CreateBuilder(args);
@@ -1888,20 +1903,22 @@ public static class GetGamesEndpoint
     app.MapGet("/", () => data.GetGames().Select(game => new GameSummaryDto(
 ```
 
-
 #### Why I can write `app.MapGames(data);` instead of `GamesEndpoints.MapGames(app, data);` in `Program.cs`
 
 The key is the `this` keyword in the first parameter.
+
 ```csharp
 public static void MapGames(this IEndpointRouteBuilder app, GameStoreData data)
 ```
 
 When you add `this` before a parameter, C# treats that method as belonging to that type. So instead of calling it like a regular static method:
+
 ```csharp
 GamesEndpoints.MapGames(app, data);  // "Hey GamesEndpoints class, run MapGames"
 ```
 
 You can call it as if `app` owns the method:
+
 ```csharp
 app.MapGames(data);  // "Hey app, run MapGames"
 ```
@@ -1958,6 +1975,7 @@ public MyService()
 > this is known as dependency injection because when `MyLogger` now needs a new dependency e.g. be passed in a `MyFileWriter` instance i.e. `output.log`, `MyService` needs to be updated accordingly.
 
 **Problems**
+
 - `MyService` is tightly coupled to the Logger dependency. Any changes to `MyLogger` require changes to `MyService`.
 - MyService needs to know how to construct and configure the `MyLogger` dependency.
 - It's hard to test `MyService` since the `MyLogger` dependency cannot be mocked or stubbed.
@@ -1976,12 +1994,13 @@ public MyService(MyLogger logger)
 ```
 
 **Service Container**
+
 - `MyLogger` → Register → `IServiceProvider`
 - `Another Dependency` → Register → `IServiceProvider`
 - `IServiceProvider` resolves, constructs and injects dependencies when there is a HTTP Request and it will constructs `MyService` and `MyService` dependencies together.
 
-
 **Benefits**
+
 - `MyService` won't be affected by changes to its dependencies.
 - `MyService` doesn't need to know how to construct or configure its dependencies.
 - Dependencies can also be injected as parameters to minimal API endpoints.
@@ -1990,9 +2009,11 @@ public MyService(MyLogger logger)
 #### Using Dependency Inversion
 
 **The Dependency Inversion Principle**
+
 > "Code should depend on abstractions as opposed to concrete implementations."
 
 **Diagram**
+
 - `MyService` ~~depends on~~ `MyLogger` ❌
 - `MyService` depends on `ILogger` (abstraction)
 - `MyLogger`, `CloudLogger`, `ConsoleLogger`, `DBLogger` all implement `ILogger`
@@ -2005,6 +2026,7 @@ public MyService(ILogger logger)
 ```
 
 **Benefits**
+
 - The logger dependency can be swapped out for a different implementation without modifying `MyService`.
 - It's easier to test `MyService` since the logger dependency can be mocked or stubbed.
 - Code is cleaner, easier to modify and easier to reuse.
@@ -2014,6 +2036,7 @@ public MyService(ILogger logger)
 #### When should instances be created?
 
 Your Web App receives HTTP Requests and has two services:
+
 - **MyService** (uses MyLogger)
 - **AnotherService** (uses MyLogger)
 
@@ -2022,6 +2045,7 @@ The **IServiceProvider** is responsible for resolving, constructing, and injecti
 **MyLogger** is registered with the **IServiceProvider**.
 
 When a service needs **MyLogger**, the IServiceProvider decides:
+
 - Create new MyLogger instance?
 - Reuse same MyLogger instance?
 
@@ -2030,6 +2054,7 @@ When a service needs **MyLogger**, the IServiceProvider decides:
 **MyLogger** is registered using `AddTransient<MyLogger>()`.
 
 The **IServiceProvider** resolves, constructs, and injects a **new MyLogger instance every time** it is requested:
+
 - **MyService** gets its own MyLogger instance (per HTTP Request)
 - The second HTTP Request gets another new MyLogger instance
 - **AnotherService** gets its own separate MyLogger instance
@@ -2041,6 +2066,7 @@ The **IServiceProvider** resolves, constructs, and injects a **new MyLogger inst
 **MyLogger** is registered using `AddScoped<MyLogger>()`.
 
 The **IServiceProvider** resolves, constructs, and injects **one MyLogger instance per HTTP Request**, shared within that request:
+
 - **HTTP Request 1:** Both **MyService** and **AnotherService** share the **same** MyLogger instance
 - **HTTP Request 2:** A **new** MyLogger instance is created and shared across services for that request
 
@@ -2051,6 +2077,7 @@ The **IServiceProvider** resolves, constructs, and injects **one MyLogger instan
 **MyLogger** is registered using `AddSingleton<MyLogger>()`.
 
 The **IServiceProvider** resolves, constructs, and injects **one MyLogger instance for the entire application lifetime**:
+
 - **HTTP Request 1:** Both **MyService** and **AnotherService** share the **same** MyLogger instance
 - **HTTP Request 2:** Both services still use that **same** MyLogger instance
 
@@ -2061,6 +2088,7 @@ The **IServiceProvider** resolves, constructs, and injects **one MyLogger instan
 Start by replacing the `GameStoreData` to be registered in a service container in `Program.cs`.
 
 Instead of passing `data` layer by layer:
+
 ```csharp
 // Program.cs
 GameStoreData data = new();
@@ -2100,6 +2128,7 @@ public static class GetGamesEndpoint
 ```
 
 I can register a service container with `GameStoreData` in it (note that this service container needs to be registered before the `app`, i.e. the web application builder is built), and removed the passing-down `data`. At the final level, in `app.MapGet` I can directly say I need a `GameStoreData data` in the delegate function parameter, and .NET will be smart enough to find it in the service container:
+
 ```csharp
 // Program.cs
 var builder = WebApplication.CreateBuilder(args);
@@ -2162,7 +2191,7 @@ public class GameDataLogger
 {
     public GameDataLogger(GameStoreData data, ILogger<GameDataLogger> logger)
     {
-        
+
     }
 }
 
@@ -2221,7 +2250,7 @@ public static class CreateGameEndpoint
 
             // Call the logger
             logger.PrintGames();
-            
+
             return Results.CreatedAtRoute(
                 EndpointName.GetGame,
                 new { id = game.Id },
@@ -2272,12 +2301,14 @@ info: GameStore.Api.Data.GameDataLogger[0]
 ```
 
 Because `GameDataLogger` is getting another `GameStoreData` instance (I used `transient` in `Program.cs`):
+
 ```csharp
 builder.Services.AddTransient<GameDataLogger>();
 builder.Services.AddTransient<GameStoreData>();
 ```
 
 So even though I called the logger after the new game is added, the POST endpoint's `GameStoreData` here is going to be different from the `GameDataLogger`'s data:
+
 ```csharp
 // In CreateGameEndpoint.cs, this `GameStoreData` instance is going to be different from the one injected into logger when the logger is constructed:
 data.AddGame(game);
@@ -2289,6 +2320,7 @@ public class GameDataLogger(GameStoreData data, ILogger<GameDataLogger> logger)
 ```
 
 Try changing the `GameStoreData` to `AddScoped` in `CreateGameEndpoint`, so it means that the POST endpoint itself should receive one instance of `GameStoreData`, and also anything from its body of request should also receive the same `GameStoreData`:
+
 ```csharp
 // In Program.cs
 builder.Services.AddTransient<GameDataLogger>();
@@ -2296,6 +2328,7 @@ builder.Services.AddScoped<GameStoreData>();
 ```
 
 So test the POST endpoint again - the newly created game is now logged successfully in the terminal:
+
 ```bash
 HTTP/1.1 201 Created
 Connection: close
@@ -2327,6 +2360,7 @@ info: GameStore.Api.Data.GameDataLogger[0]
 But remember after this `POST` request is done, any future requests will receive a brand new `GameStoreData` instance again.
 
 Like if I run `GetGames` endpoint, then I will see a new `GameStoreData` instance is constructed which will not have my newly added game:
+
 ```bash
 HTTP/1.1 200 OK
 Connection: close
@@ -2365,6 +2399,7 @@ I can add breakpoints over `CreateGameEndpoint`, `GameDataLogger` and `GameStore
 ### Using singleton services
 
 So now make `GameStoreData` as the one and only instance across the entire lifetime of the application for every requests.
+
 ```csharp
 // Program.cs
 builder.Services.AddTransient<GameDataLogger>();
@@ -2372,6 +2407,7 @@ builder.Services.AddSingleton<GameStoreData>();
 ```
 
 Test with the POST endpoint - the new game is created successfully:
+
 ```bash
 info: GameStore.Api.Data.GameDataLogger[0]
       Game Id: 37c12262-1d51-49eb-a4ae-ecc3ee75bf49 | Game Name: Street Fighter II
@@ -2401,6 +2437,7 @@ Transfer-Encoding: chunked
 ```
 
 And then test GET games endpoint - the GameStoreData is now having the new game i.e. it's not being reconstructed:
+
 ```bash
 HTTP/1.1 200 OK
 Connection: close
@@ -2444,18 +2481,21 @@ Transfer-Encoding: chunked
 #### Interesting thing to note
 
 I can technically write even though the newly created game will not show up in GET games endpoint:
+
 ```csharp
 builder.Services.AddSingleton<GameDataLogger>(); // singleton can depend on a transient service
 builder.Services.AddTransient<GameStoreData>();
 ```
 
 but not this because when a singleton is constructed, there is no scope, so I can't have a singleton obejct expecting to consume a scope service when there's no scope:
+
 ```csharp
 builder.Services.AddSingleton<GameDataLogger>(); // singleton cannot depend on a scoped service
 builder.Services.AddScoped<GameStoreData>();
 ```
 
 but I can do this:
+
 ```csharp
 builder.Services.AddScoped<GameDataLogger>(); // scope can depend on a singleton service
 builder.Services.AddSingleton<GameStoreData>();
@@ -2520,12 +2560,14 @@ Scoped services depend on the request lifecycle, which does not exist for single
 #### The Need For Object-Relational Mapping (O/RM)
 
 Problems:
+
 - Need to learn new language
 - Need a lot of additional data-access code
 - Error prone
 - Need to manually keep C# models in sync with DB tables
 
 Flow:
+
 1. Translate Web API request to SQL query
 2. Send SQL query to database server
 3. Read resulting database rows
@@ -2540,12 +2582,14 @@ A technique for converting data between a relational database and an object-orie
 A lightweight, extensible, open source and cross-platform object-relational mapper for .NET
 
 Benefits:
+
 - No need to learn a new language
 - Minimal data-access code (LINQ)
 - Tooling to keep C# models in sync with DB tables
 - Change tracking
 
 Flow:
+
 1. REST API sends C# code to Entity Framework Core
 2. Entity Framework Core sends SQL statements to Database
 3. Database returns resulting data to Entity Framework Core
@@ -2560,6 +2604,7 @@ We need a foreign key from Game into Genre.
 So whenever we create a Game, it has to have a valid Genre that actually exists in the database.
 
 In `Game.cs`:
+
 ```csharp
 // old
 public required Genre Genre { get; set; } // even though this is enough for EF core to infer the relationship, it's better to do the below
@@ -2570,6 +2615,7 @@ public Guid GenreId { get; set; } // FK: add this explicit foreign key, so EF co
 ```
 
 Then `GetGameEndpoint` will have a warning:
+
 ```csharp
 // old
 game.Genre.Id, // warning: 'Genre' may be null here.
@@ -2579,6 +2625,7 @@ game.GenreId,
 ```
 
 In `GetGamesEndpoint` we can use null forgiveness operator because in `GameStoreData` we always assign a Genre to a Game.
+
 ```csharp
 // old
 game.Genre.Name,
@@ -2588,6 +2635,7 @@ game.Genre!.Name,
 ```
 
 Also, update `GameStoreData` to add the new `GenreId` field to the `Game`:
+
 ```csharp
     public GameStoreData()
     {
@@ -2602,6 +2650,7 @@ Also, update `GameStoreData` to add the new `GenreId` field to the `Game`:
 ```
 
 Update `CreateGameEndpoint` to add the new `GenreId` field to the `Game`:
+
 ```csharp
 public static class CreateGameEndpoint
 {
@@ -2624,6 +2673,7 @@ public static class CreateGameEndpoint
 ```
 
 Update `UpdateGameEndpoint` to add the new `GenreId` field to the `existingGame`:
+
 ```csharp
 // add
 existingGame.GenreId = genre.Id;
@@ -2632,7 +2682,6 @@ existingGame.GenreId = genre.Id;
 ### Creating the DBContext
 
 EF Core doc: https://learn.microsoft.com/en-us/ef/
-
 
 Click `Supported database management systems`.
 
@@ -2645,6 +2694,7 @@ Select `8.0.10` (make it the same as the tutorial).
 Then, go inside `Backend/src/GameStore.Api` and run `dotnet add package Microsoft.EntityFrameworkCore.Sqlite --version 8.0.10`.
 
 Create `GameStoreContext` in `Backend/src/GameStore.Api/Data/GameStoreContext.cs`:
+
 ```csharp
 public class GameStoreContext
 {
@@ -2653,6 +2703,7 @@ public class GameStoreContext
 ```
 
 Then:
+
 - Add inheritance from `DbContext` of EF core
 - Use the primary constructor to pass `options` to the base class i.e. DbContext's `options` (which holds configuration like the connection string and which database provider to use, for example, SQL Server or SQLite)
 - Use `DbSet<T>` properties to represent each table. EF core will use the `DbSet<Game>` property to work out that a `Games` table should exist, based on the `Game` class
@@ -2673,7 +2724,7 @@ public class GameStoreContext(DbContextOptions<GameStoreContext> options): DbCon
 
 #### `DbContext(options)` is calling the base class constructor
 
-DbContext is the base class your GameStoreContext inherits from (that's what the : DbContext part means). The (options) immediately after it is a primary constructor base call. 
+DbContext is the base class your GameStoreContext inherits from (that's what the : DbContext part means). The (options) immediately after it is a primary constructor base call.
 
 It says: "take the `options` parameter from my own primary constructor, and pass it straight to my base class's constructor."
 So this single line is doing two jobs:
@@ -2728,10 +2779,9 @@ EF Core turns that line into the right SQL behind the scenes.
 
 ##### How you can verify this yourself
 
-A good way to see it in action: turn on EF Core logging in your project (there's a setting for this in `appsettings.json` under `Logging`), then run a query like the one above. 
+A good way to see it in action: turn on EF Core logging in your project (there's a setting for this in `appsettings.json` under `Logging`), then run a query like the one above.
 
 You'll see the actual SQL that DbContext generated printed in your terminal. That's a solid way to build trust in what it's doing under the hood, rather than taking it on faith.
-
 
 #### "DbContext represents a session with the database"
 
@@ -2747,17 +2797,18 @@ This is just a naming convention. Any class that maps to a database table is cal
 
 This is the part most worth slowing down on, since it's a common interview topic too.
 
-##### Repository pattern 
+##### Repository pattern
 
 It is about hiding the data access logic behind a simple interface, so the rest of your code doesn't need to know how data is fetched. For example, instead of writing a database query directly in your controller, you call something like `studentRepository.GetById(5)`. The "how" is hidden inside the repository.
 
 In EF Core, each `DbSet<Student>` already behaves like a small repository. It gives you methods like `.Add()`, `.Find()`, `.Where()` without you writing the queries by hand.
 
-##### Unit of Work pattern 
+##### Unit of Work pattern
 
 It is about grouping several changes together, then saving them all at once, as a single transaction. So if you update a student's name and add a new enrolment, both changes go through together, or neither does.
 
 In EF Core, this is SaveChanges(). DbContext tracks every change you make (in memory), and only when you call SaveChanges() does it send everything to the database in one batch.
+
 ```csharp
 context.Students.Add(newStudent);          // tracked, not saved yet
 context.Students.Update(existingStudent);  // tracked, not saved yet
@@ -2782,11 +2833,12 @@ is really saying: "When someone asks for Games, open the Game drawer using Set<G
 ##### Why bother writing it this way instead of storing the box directly?
 
 You could imagine writing it like this instead:
+
 ```csharp
 public DbSet<Game> Games = Set<Game>();
 ```
 
-This doesn't work safely. The issue is about *when* code runs, not whether the folder exists.
+This doesn't work safely. The issue is about _when_ code runs, not whether the folder exists.
 
 A normal field assignment with `=` runs once, during object construction, before the constructor body finishes setting things up. At that exact moment, `options` has only just been received. EF Core hasn't finished its internal setup yet (for example, it hasn't connected the model to a database provider). So calling `Set<Game>()` this early can fail or behave unpredictably.
 
@@ -2797,6 +2849,7 @@ Using `=>` instead of `=` means: "Don't open the drawer now. Wait until someone 
 This is called an **expression-bodied member**, specifically an **expression-bodied property**.
 
 `public DbSet<Game> Games => Set<Game>();` is shorthand for:
+
 ```csharp
 public DbSet<Game> Games
 {
@@ -2813,6 +2866,7 @@ Note: the `g => g.Price > 50` style below uses the same `=>` symbol, but it's ca
 ##### What does Games actually let you do?
 
 Once you have the box, you can look through it or add to it:
+
 ```csharp
 context.Games.Where(g => g.Price > 50);   // look through it
 context.Games.Add(newGame);               // add to it
@@ -2825,15 +2879,18 @@ One simple summary sentence: `DbSet<Game>` is the box of games. `Set<Game>()` is
 ### Configuring the DBContext
 
 What service lifetime to use for a DbContext?
+
 - DbContext is designed to be used as a single Unit of Work
 - DbContext created --> entity changes tracked -> save changes -> dispose
 
 Why this flow:
+
 - DB connections are expensive
 - DbContext is not thread safe
 - Increased memory usage due to change tracking
 
 USE: Scoped service lifetime
+
 - Aligning the context lifetime to the lifetime of the request
 - There is only one thread executing each client request at a given time
 - Ensure each request gets a separate DbContext instance
@@ -2841,6 +2898,7 @@ USE: Scoped service lifetime
 #### Two ways to register the DbContext in `Program.cs`
 
 ##### Option 1 - Shorthand (SQLite only):
+
 ```csharp
 var connString = "Data Source=GameStore.db";
 
@@ -2848,6 +2906,7 @@ builder.Services.AddSqlite<GameStoreContext>(connString);
 ```
 
 ##### Option 2 - Verbose (any database provider):
+
 ```csharp
 // I can't write this because I need to pass `options`:
 builder.Services.AddScoped<GameStoreContext>();
@@ -2858,13 +2917,14 @@ builder.Services.AddDbContext<GameStoreContext>(
 );
 ```
 
-Option 2 eventually uses an `options` builder. This matches how `GameStoreContext` is defined in `GameStoreContext.cs`. The class constructor takes `DbContextOptions<GameStoreContext> options` as a parameter and passes it up to the base `DbContext` class's `options`. 
+Option 2 eventually uses an `options` builder. This matches how `GameStoreContext` is defined in `GameStoreContext.cs`. The class constructor takes `DbContextOptions<GameStoreContext> options` as a parameter and passes it up to the base `DbContext` class's `options`.
 
 So when ASP.NET registers the context, it needs to build those options first. That is what the lambda `options => options.UseSqlite(connString)` does. It tells Entity Framework which database provider to use before creating the context.
 
 Option 1 is just a shortcut that does the same thing internally. Both approaches result in the same scoped `GameStoreContext` being available via dependency injection.
 
 **`GameStoreContext.cs`:**
+
 ```csharp
 using System;
 using GameStore.Api.Models;
@@ -2882,6 +2942,7 @@ public class GameStoreContext(DbContextOptions options)
 ### Introduction to ASP.NET Core configuration
 
 Hard-code the connection string in `Program.cs` like this isn't a good idea:
+
 ```csharp
 var connString = "Data Source=GameStore.db";
 ```
@@ -2894,6 +2955,7 @@ var connString = "Data Source=GameStore.db";
 #### Configuration sources fed into `IConfiguration`:
 
 For example, there will be some configurations in `appsettings.json`:
+
 ```json
   "ConnectionStrings": {
     "GameStore": "Data Source=..."
@@ -2901,6 +2963,7 @@ For example, there will be some configurations in `appsettings.json`:
 ```
 
 Also these other ones:
+
 - Command Line Args
 - Environment Variables
 - User Secrets
@@ -2909,15 +2972,44 @@ Also these other ones:
 All sources → `IConfiguration` → Connection string → REST API → Database
 
 ##### User Secrets and ASP.NET Secret Manager
+
 For User Secrets, never store credentials in `appsettings.json` and use `User Secrets` if your connection string includes credentials.
 
 User Secrets is a local dev tool. It's enabled by the Secret Manager. The Secret Manager stores secrets in a separate file on your machine, outside your project folder. This means they won't get committed to Git by accident. You access it via the dotnet user-secrets command. It only works in the Development environment.
 
 ##### Cloud Sources (e.g. Azure Key Vault)
+
 Azure Key Vault is a cloud service that stores secrets (like passwords and connection strings) securely. Instead of putting secrets in a file, your app fetches them from Key Vault at startup. AWS has an equivalent called AWS Secrets Manager, which you might already know. For this tutorial, you don't need it yet.
 
 ##### IConfiguration and the REST API
 
 Yes, that's right. At startup, .NET collects all the configuration sources and merges them into one IConfiguration object. Your REST API code just reads from that object. It doesn't care whether the value came from a file, an environment variable, or Key Vault. This keeps your app code clean and flexible.
 
-#### Using ASP.NET Core configuration 
+#### Using ASP.NET Core configuration
+
+In `appsettings.json` this .json file (it has everything in the .json format):
+
+```json
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*",
+  "ConnectionStrings": {
+    "GameStore": "Data Source=GameStore.db" // moved from `var connString` in Program.cs
+  }
+}
+```
+
+And `Program.cs` is now like this:
+
+```csharp
+var connString = builder.Configuration.GetConnectionString("GameStore"); // "GameStore" should be the same as in appsettings.json
+```
+
+To test if the `connString` now has the right value, put a breakpoint in the next line and hit F5.
+
+Then hover over `connString` and the debugger should show its value is `"Data Source=GameStore.db"`.
