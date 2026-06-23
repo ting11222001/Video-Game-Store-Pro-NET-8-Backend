@@ -2819,30 +2819,44 @@ So the tutorial's claim is: DbContext gives you `DbSet<T>` properties (acting li
 
 #### `DbContext` and `Set<T>()`
 
-Think of `DbContext` as a folder, and `Set<T>()` as a labelled drawer inside it.
+`DbSet<Game>` is a type. It represents the Games table in your database. You use it to query and save game records.
 
-Your `GameStoreContext` is the folder. Inside the folder, you need separate drawers for separate things: one for games, one for genres. You can't just dump everything in one place, or you couldn't find anything later.
-`Set<Game>()` is the method that opens the drawer labelled "Game". It hands you a box (the `DbSet<Game>`) that contains, or will contain, every game.
+`Set<Game>()` is a method. It comes from DbContext. It returns the `DbSet<Game>` for the Game entity.
 
+So this line:
 ```csharp
 public DbSet<Game> Games => Set<Game>();
 ```
 
-is really saying: "When someone asks for Games, open the Game drawer using Set<Game>(), and give them that box."
+reads as: "The Games property returns whatever `Set<Game>()` gives back." They are the same object. `Set<Game>()` is just how you ask DbContext for it.
 
-##### Why bother writing it this way instead of storing the box directly?
-
-You could imagine writing it like this instead:
-
+You could also write it the older way:
 ```csharp
-public DbSet<Game> Games = Set<Game>();
+public DbSet<Game> Games { get; set; } = null!;
 ```
 
-This doesn't work safely. The issue is about _when_ code runs, not whether the folder exists.
+Both do the same job. The `Set<Game>()` version is preferred because it avoids the `null!` trick and is less likely to cause a null warning from the compiler.
 
-A normal field assignment with `=` runs once, during object construction, before the constructor body finishes setting things up. At that exact moment, `options` has only just been received. EF Core hasn't finished its internal setup yet (for example, it hasn't connected the model to a database provider). So calling `Set<Game>()` this early can fail or behave unpredictably.
+##### Why `=>` instead of `=`
 
-Using `=>` instead of `=` means: "Don't open the drawer now. Wait until someone actually asks for Games, then open it." By that point, the whole context is fully set up, so it's safe. This works because `DbSet` objects are usually obtained from a `DbSet` property on a derived `DbContext` or from the `Set` method. (Microsoft Learn)
+`=` assigns a value once, when the object is created.
+
+`=>` defines an expression that runs every time the property is accessed.
+
+```csharp
+// = assigns once at creation
+public DbSet<Game> Games { get; set; } = null!;
+// null! means "I know this looks like it could be null, but trust me, it will not be null when it actually runs."
+
+// => runs Set<Game>() each time you access Games
+public DbSet<Game> Games => Set<Game>();
+```
+
+With `=`, you are saying "set this to null right now." EF Core will later replace it, but between object creation and EF Core wiring things up, it is technically null. That is why you need the ! to silence the warning.
+
+With `=>`, there is no stored value at all. Every time something accesses `Games`, it calls `Set<Game>()` fresh. `Set<Game>()` always returns a real object, never null. So there is no warning and no lie to the compiler.
+
+You can verify this yourself by hovering over `=>` in VS Code. It will say "expression-bodied member." That tells you it is not storing anything, just defining what to return when asked.
 
 ##### What is `=>` actually called?
 
@@ -2851,17 +2865,24 @@ This is called an **expression-bodied member**, specifically an **expression-bod
 `public DbSet<Game> Games => Set<Game>();` is shorthand for:
 
 ```csharp
-public DbSet<Game> Games
-{
-    get { return Set<Game>(); }
-}
+public DbSet<Game> Games { get { return Set<Game>(); } }
 ```
 
-So `=>` here means: "calculate this value by running this expression, every time it's accessed", rather than storing a fixed value.
+The only thing worth adding is that `=>` in this context is not the same as `=>` in a lambda. They look identical but mean different things depending on where they appear.
 
-**Simple summary: `=` runs immediately and stores the result. `=>` waits and runs the code only when you ask for it.**
+In a lambda:
+```csharp
+games.Where(g => g.Price > 50)
+```
+Here `=>` means "for each item g, do this."
 
-Note: the `g => g.Price > 50` style below uses the same `=>` symbol, but it's called a **lambda expression**, not an expression-bodied member. Same symbol, different name, different purpose, depending on where it appears.
+In an expression-bodied member:
+```csharp
+public DbSet<Game> Games => Set<Game>();
+```
+Here `=>` means "when accessed, return this."
+
+Same symbol, different role.
 
 ##### What does Games actually let you do?
 
@@ -3013,3 +3034,120 @@ var connString = builder.Configuration.GetConnectionString("GameStore"); // "Gam
 To test if the `connString` now has the right value, put a breakpoint in the next line and hit F5.
 
 Then hover over `connString` and the debugger should show its value is `"Data Source=GameStore.db"`.
+
+### Generating database migrations
+
+#### Installing packages
+
+Go to https://www.nuget.org/.
+
+Find `dotnet-ef`. Find the stable version as `8.0.26`.
+
+Run this in `Backend/src/GameStore.Api`:
+```bash
+dotnet tool install --global dotnet-ef --version 8.0.26
+
+# I tried to use the same version as the tutorial but it didn't allow me to
+# $ dotnet tool install --global dotnet-ef --version 8.0.11
+# The requested version 8.0.11 is lower than existing version 8.0.26.
+```
+
+Then, find `Microsoft.EntityFrameworkCore.Design`.
+
+For the version, I tried to use the same one as the `dotnet-ef`:
+```bash
+dotnet add package Microsoft.EntityFrameworkCore.Design --version 8.0.26
+```
+
+#### Create the first migration
+
+Use this command and add the name as `InitialCreate`:
+```bash
+dotnet ef migrations add InitialCreate --output-dir Data/Migrations
+```
+
+From the generated migrations file under `Data/Migrations` folder, there will be two tables created in the `Up` method:
+```csharp
+namespace GameStore.Api.Data.Migrations
+{
+    /// <inheritdoc />
+    public partial class InitialCreate : Migration
+    {
+        /// <inheritdoc />
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.CreateTable(
+                name: "Genres",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
+                    Name = table.Column<string>(type: "TEXT", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Genres", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Games",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
+                    Name = table.Column<string>(type: "TEXT", nullable: false),
+                    GenreId = table.Column<Guid>(type: "TEXT", nullable: false),
+                    Price = table.Column<decimal>(type: "TEXT", nullable: false),
+                    ReleaseDate = table.Column<DateOnly>(type: "TEXT", nullable: false),
+                    Description = table.Column<string>(type: "TEXT", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Games", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Games_Genres_GenreId",
+                        column: x => x.GenreId,
+                        principalTable: "Genres",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Games_GenreId",
+                table: "Games",
+                column: "GenreId");
+        }
+
+        /// <inheritdoc />
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.DropTable(
+                name: "Games");
+
+            migrationBuilder.DropTable(
+                name: "Genres");
+        }
+    }
+}
+```
+
+This is what EF core was trying to create tables from `GameStoreContext.cs`:
+```csharp
+public class GameStoreContext(DbContextOptions<GameStoreContext> options): DbContext(options)
+{
+    public DbSet<Game> Games => Set<Game>();
+    public DbSet<Genre> Genres => Set<Genre>();
+}
+```
+
+And each column's type etc. is same as the model/entity i.e. `Game.cs` and `Genre.cs`:
+```csharp
+public class Game
+{
+    public Guid Id { get; set; }
+    public required string Name { get; set; }
+    public Genre? Genre { get; set; }
+    public Guid GenreId { get; set; }
+    public decimal Price { get; set; }
+    public DateOnly ReleaseDate { get; set; }
+    public required string Description { get; set; }
+}
+```
