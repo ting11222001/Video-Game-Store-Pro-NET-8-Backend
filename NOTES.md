@@ -2960,6 +2960,118 @@ public class GameStoreContext(DbContextOptions options)
 }
 ```
 
+#### Generics and Primary Constructors in C#
+
+One-liner: Generics let you tell a method or class which type to work with, and primary constructors are a short way to receive and pass dependencies in C#.
+Key points:
+
+- `<GameStoreContext>` inside `AddSqlite<>` is a type parameter, not a value. It tells .NET which class to register.
+- `connString` is a regular value parameter (a string). It gets wrapped into a DbContextOptions object by .NET automatically.
+- `options` in the constructor is NOT the raw connection string. It is an object that contains the connection string plus other EF config.
+- `: DbContext(options)` passes the options up to the parent class, which is how inheritance works in C#.
+
+Source/context:
+```csharp
+// Program.cs
+builder.Services.AddSqlite<GameStoreContext>(connString);
+
+// GameStoreContext.cs
+public class GameStoreContext(DbContextOptions<GameStoreContext> options) : DbContext(options)
+{
+    public DbSet<Game> Games => Set<Game>();
+    public DbSet<Genre> Genres => Set<Genre>();
+}
+```
+
+##### What are the `<>` called?
+They are called generics (or "type parameters"). The thing inside `<>` is a type you pass to a class or method, like an argument, but for types instead of values.
+
+Think of it like a template. You tell the method or class: "work with this specific type."
+```csharp
+AddSqlite<GameStoreContext>(connString)
+//       ^^^^^^^^^^^^^^^^^ This says: "use GameStoreContext as the database context type"
+```
+
+So `connString` is a value parameter (a string), and GameStoreContext is a type parameter (a class). They are two different kinds of "input."
+
+The full picture:
+```
+AddSqlite<GameStoreContext>(connString)
+        |
+        +--> .NET builds a DbContextOptions<GameStoreContext> object (with connString inside)
+        |
+        +--> .NET creates a GameStoreContext, passing that options object in
+        |
+        +--> GameStoreContext passes options to DbContext (the base class)
+        |
+        +--> DbContext uses it to connect to your SQLite database
+```
+
+Or this way:
+```
+Program.cs
+│
+│  builder.Services.AddSqlite<GameStoreContext>(connString)
+│
+│  .NET sees: "register GameStoreContext, build a DbContextOptions
+│              for it, and put connString inside"
+│
+▼
+GameStoreContext constructor is called
+│
+│  (DbContextOptions<GameStoreContext> options)
+│
+│  .NET hands in the options object it just built
+│
+▼
+: DbContext(options)
+│
+│  options is passed up to the parent DbContext class
+│
+▼
+DbContext uses options to connect to the SQLite database
+```
+
+##### `DbContextOptions<GameStoreContext>` broken down
+
+`DbContextOptions` is a class that holds configuration for a database context. Things like:
+
+- What database to use (SQLite, SQL Server, etc.)
+- The connection string
+- Other EF settings
+
+`<GameStoreContext>` here means: "these options are specifically for `GameStoreContext`, not for any other context."
+
+##### Why does it need to know which context?
+Your app might have more than one database context. For example:
+```csharp
+// One context for the game store database
+public class GameStoreContext(...) : DbContext(...) { }
+
+// Another context for users/auth database
+public class AuthContext(...) : DbContext(...) { }
+```
+
+If you just wrote `DbContextOptions` options, .NET would not know which context those options belong to. The generic `<GameStoreContext>` acts like a label. It says "these options belong to GameStoreContext only."
+
+So when .NET sees this:
+```csharp
+DbContextOptions<GameStoreContext> options
+```
+
+It reads it as: "give me the options that were registered for `GameStoreContext`."
+
+##### How it connects back to `AddSqlite`
+
+```csharp
+builder.Services.AddSqlite<GameStoreContext>(connString);
+```
+
+This line tells .NET: "create a `DbContextOptions` object, put `connString` inside it, and label it as belonging to `GameStoreContext`."
+
+Later, when `GameStoreContext` is created, .NET looks for the options labelled `<GameStoreContext>` and hands them in.
+
+
 ### Introduction to ASP.NET Core configuration
 
 Hard-code the connection string in `Program.cs` like this isn't a good idea:
@@ -3151,3 +3263,27 @@ public class Game
     public required string Description { get; set; }
 }
 ```
+
+### Applying a database migration
+
+Run this in `Backend/src/GameStore.Api`:
+```bash
+dotnet ef database update
+```
+
+And `GameStore.db` will show up in Solution Explorer to the left.
+
+I've installed SQLite extension I can double click on the `GameStore.db` to see the `Games` and `Genres` table (they're currently empty).
+
+I can only see:
+```
+Table: __EFMigrationsHistory
+ColumnValue: MigrationId        ProductVersion
+20260623133330_InitialCreate    8.0.26
+
+Where Columns:
+- MigrationId (text, primary key)
+- ProductVersion (text)
+```
+
+### Migrating the database when the app starts
