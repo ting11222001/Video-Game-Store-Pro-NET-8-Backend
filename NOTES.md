@@ -3287,3 +3287,171 @@ Where Columns:
 ```
 
 ### Migrating the database when the app starts
+
+Added `GameStoreContext` as a scoped service in `Program.cs`:
+```csharp
+builder.Services.AddSqlite<GameStoreContext>(connString);
+```
+
+#### Extension Methods in C#
+
+The `this` keyword in the parameter (`this WebApplication app`) is what tells C# "treat this as an extension on WebApplication".
+
+```csharp
+public static class DataExtensions  // ← class must be static
+{
+    public static void MigrateDb(this WebApplication app)   // ← method must be static
+    {
+        using var scope = app.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetService<GameStoreContext>();
+    }
+}
+```
+
+##### Why Extend WebApplication?
+Look at your `Program.cs`. After `builder.Build()`, you have the app variable, which is a WebApplication instance.
+
+```csharp
+var app = builder.Build();  // app is a WebApplication
+
+app.MapGames();     // already an extension method
+app.MapGenres();    // already an extension method
+app.Run();
+```
+
+The tutorial is keeping `Program.cs` clean. All the setup steps read like a list of instructions on `app`.
+
+#### Why Create a Scope?
+To access this `GameStoreContext`, I need to create a `scope` in `DataExtensions.cs`, and via that `scope` I can request an instance of the `GameStoreContext`.
+
+`MigrateDb()` runs before `app.Run()`. There is no HTTP request yet. So there is no request lifespan for .NET to attach the DbContext to.
+```csharp
+app.MigrateDb();   // ← runs here, no request exists yet
+app.Run();         // ← requests start here
+```
+
+##### What CreateScope() Does
+A scope is basically a manual lifespan you create yourself. You are telling .NET:
+
+"I need a container to get services from. I will tell you when I'm done with it."
+
+```csharp
+using var scope = app.Services.CreateScope();
+```
+
+The `using` keyword here is important. It means when the code block finishes, .NET will automatically clean up the scope and everything created inside it, including your `GameStoreContext`.
+
+##### Then You Get `GameStoreContext` From That Scope
+
+`ServiceProvider` will allow me to access anything registered in the service container i.e. those in `Program.cs` from `AddSqlite`, `AddTransient` and `AddSingleton`.
+
+When hovering `dbContext`, it shows:
+```
+(local variable) GameStoreContext? dbContext
+'dbContext' may be null here.`
+```
+
+So I updated it to:
+```csharp
+public static class DataExtensions
+{
+    public static void MigrateDb(this WebApplication app)
+    {
+        using var scope = app.Services.CreateScope();
+        GameStoreContext? dbContext = scope.ServiceProvider.GetService<GameStoreContext>();
+    }
+}
+```
+
+And I replaced `GetService` with `GetRequiredService` to make sure I can at least get one instance of `GameStoreContext`.
+```csharp
+public static class DataExtensions
+{
+    public static void MigrateDb(this WebApplication app)
+    {
+        using var scope = app.Services.CreateScope();
+        GameStoreContext dbContext = scope.ServiceProvider.GetRequiredService<GameStoreContext>();
+    }
+}
+```
+
+Then, I can use that same scoped instance of `GameStoreContext` as `dbContext` and run `dbContext.Database.Migrate();`:
+```csharp
+public static class DataExtensions
+{
+    public static void MigrateDb(this WebApplication app)
+    {
+        using var scope = app.Services.CreateScope();
+        GameStoreContext dbContext = scope.ServiceProvider.GetRequiredService<GameStoreContext>();
+        dbContext.Database.Migrate();
+    }
+}
+```
+
+Add `app.MigrateDb()` in `Program.cs` right before the `app.Run()`, and manually delete the `GameStore.db` first to test if the automated migration works.
+
+```csharp
+app.MapGames();
+app.MapGenres();
+app.MigrateDb();
+
+app.Run();
+```
+
+Now in terminal, I can just run `dotnet run`.
+
+##### A caution note
+
+This approach is only for local environment.
+
+In production, there would be multiple instances running (e.g. we often run multiple copies of our app at the same time), and if I just do migration from each instance to the same database, then I will cause race conditions.
+
+##### What Production Apps Do Instead 
+
+In production, teams usually handle migrations separately from the app startup. Common approaches are:
+
+- Run migrations as a separate deployment step before the app starts
+- Use a distributed lock so only one instance can migrate at a time
+- Use a dedicated migration job that runs once
+
+#### Where EF Core Gets Its Instructions
+
+EF Core looks at your `GameStoreContext` class as the source of truth:
+```csharp
+// GameStoreContext.cs
+public class GameStoreContext(DbContextOptions<GameStoreContext> options) : DbContext(options)
+{
+    public DbSet<Game> Games => Set<Game>();
+    public DbSet<Genre> Genres => Set<Genre>();
+}
+```
+
+This tells EF Core:
+- I need a `Games` table, shaped like the `Game` model
+- I need a `Genres` table, shaped like the `Genre` model
+
+The Flow:
+```
+Your Model classes        GameStoreContext         Migration files
+(Game.cs, Genre.cs)  →   (DbSet definitions)  →   (the generated recipes)
+                                                          ↓
+                                                    GameStore.db
+```
+
+#### The Extra SQLite Files
+
+1. `GameStore.db-wal` (Write-Ahead Log)
+
+This is a temporary file where SQLite writes new changes first, before moving them into the main .db file. It is like a scratchpad.
+
+2. `GameStore.db-shm` (Shared Memory)
+
+This is a helper file that works alongside the WAL file. It helps SQLite coordinate reads and writes.
+
+Add them to your `.gitignore`. They are:
+- Temporary files, SQLite creates and deletes them as needed
+- Specific to your local running instance
+
+Using `*.db` is also worth adding since the database file itself should not be committed either. It is generated data, not source code.
+
+Stop your app. Those two files may disappear on their own. SQLite merges the WAL back into the main .db file when the database connection closes cleanly. That confirms they are just temporary working files.
