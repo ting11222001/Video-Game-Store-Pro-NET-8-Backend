@@ -3455,3 +3455,25 @@ Add them to your `.gitignore`. They are:
 Using `*.db` is also worth adding since the database file itself should not be committed either. It is generated data, not source code.
 
 Stop your app. Those two files may disappear on their own. SQLite merges the WAL back into the main .db file when the database connection closes cleanly. That confirms they are just temporary working files.
+
+### Knowledge check 
+
+#### What major advantage does Entity Framework Core offer to developers when working with relational databases in .NET applications?
+
+Translates C# data access code into SQL and back, minimizing the need to learn SQL.
+
+#### In Entity Framework Core, what is the primary role of the DbContext?
+
+To serve as a session with the database for querying and saving entity instances.
+
+#### What is the key benefit of the configuration system in ASP.NET Core?
+
+It simplifies the code by using the same method to access different configuration sources without knowing their origin.
+
+#### What is the key benefit of the configuration system in ASP.NET Core?
+
+The configuration system in ASP.NET Core is designed to be flexible and versatile, allowing for the use of multiple configuration sources like appsettings.json, command line arguments, environment variables, and more. 
+
+A significant benefit of this system is that it abstracts the details of where configuration data comes from. This simplification is achieved through the IConfiguration interface, which presents a unified API for accessing configuration values regardless of their source. 
+
+This means developers can write code that is agnostic of the configuration source, which makes the application more modular and adaptable to changes in its environment.
