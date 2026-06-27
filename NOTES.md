@@ -3477,3 +3477,122 @@ The configuration system in ASP.NET Core is designed to be flexible and versatil
 A significant benefit of this system is that it abstracts the details of where configuration data comes from. This simplification is achieved through the IConfiguration interface, which presents a unified API for accessing configuration values regardless of their source. 
 
 This means developers can write code that is agnostic of the configuration source, which makes the application more modular and adaptable to changes in its environment.
+
+## Working with Data
+
+### Data seeding
+
+In `DataExtensions.cs` and inside `MigrateDb`, I learned that to access the `GameStoreContext`, I need to request an instance from `ServiceProvider` and through the scope because `GameStoreContext` was registered as a scoped service, so I need to create a scope first and then retrieve that instance.
+
+Now, create `SeedDb`.
+
+`!dbContext.Genres.Any()`: if there's no data in the Genres table, it needs to be initialised.
+
+In the `.AddRange()`, and inside each new Genre model, I don't need to set id myself. EF Core will automatically handle that for me. EF Core, by convention, treats a property named `Id` (or `GenreId`) as the primary key. If that key is a `Guid`, EF Core will call `Guid.NewGuid()` automatically before inserting.
+
+To actually commit the changes to the database, I need to call `dbContext.SaveChanges()`.
+
+```csharp
+// DataExtensions.cs
+public static class DataExtensions
+{
+    public static void MigrateDb(this WebApplication app)
+    {
+        using var scope = app.Services.CreateScope();
+        GameStoreContext dbContext = scope.ServiceProvider.GetRequiredService<GameStoreContext>();
+        dbContext.Database.Migrate();
+    }
+
+    public static void SeedDb(this WebApplication app)
+    {
+        using var scope = app.Services.CreateScope();
+        GameStoreContext dbContext = scope.ServiceProvider.GetRequiredService<GameStoreContext>();
+
+        if (!dbContext.Genres.Any())
+        {
+            dbContext.Genres.AddRange(
+                new Genre { Name = "Fighting"}, // no need to set Id myself
+                new Genre { Name = "Kids and Family" },
+                new Genre { Name = "Racing" },
+                new Genre { Name = "Roleplaying" },
+                new Genre { Name = "Sports" }
+            );
+
+            dbContext.SaveChanges();
+        }
+    }
+}
+
+```
+
+After creating `SeedDb` in `DataExtensions.cs`, add `app.SeedDb()` in `Program.cs`:
+
+```csharp
+// Program.cs
+var app = builder.Build();
+
+app.MapGames();
+app.MapGenres();
+app.MigrateDb();
+app.SeedDb(); // added
+
+app.Run();
+```
+
+Deleted the old `GameStore.db` and then run `dotnet run`. Genres table should be populated with those mock data.
+
+Then, merge `MigrateDb` and `SeedDb` into `InitialiseDb` in `DataExtensions.cs` and then turn the initially `public` methods into `private`, so I can easily call both when the app is up and running, and update `Program.cs` accordingly:
+
+```csharp
+// DataExtensions.cs
+
+public static class DataExtensions
+{
+    public static void InitialiseDb(this WebApplication app)  // added
+    {
+        app.MigrateDb();
+        app.SeedDb();
+    }
+
+    private static void MigrateDb(this WebApplication app)
+    {
+        using var scope = app.Services.CreateScope();
+        GameStoreContext dbContext = scope.ServiceProvider.GetRequiredService<GameStoreContext>();
+        dbContext.Database.Migrate();
+    }
+
+    private static void SeedDb(this WebApplication app)
+    {
+        using var scope = app.Services.CreateScope();
+        GameStoreContext dbContext = scope.ServiceProvider.GetRequiredService<GameStoreContext>();
+
+        if (!dbContext.Genres.Any())
+        {
+            dbContext.Genres.AddRange(
+                new Genre { Name = "Fighting"},
+                new Genre { Name = "Kids and Family" },
+                new Genre { Name = "Racing" },
+                new Genre { Name = "Roleplaying" },
+                new Genre { Name = "Sports" }
+            );
+
+            dbContext.SaveChanges();
+        }
+    }
+}
+
+
+// Program.cs
+
+var app = builder.Build();
+
+app.MapGames();
+app.MapGenres();
+app.InitialiseDb(); // added
+
+app.Run();
+```
+
+Then do the testing step again - delete the old `GameStore.db` and run the `dotnet run`, the Genres table should now be populated successfully as before.
+
+### Creating new database records
