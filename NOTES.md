@@ -3596,3 +3596,175 @@ app.Run();
 Then do the testing step again - delete the old `GameStore.db` and run the `dotnet run`, the Genres table should now be populated successfully as before.
 
 ### Creating new database records
+
+Now I can update the endpoint to use EF Core.
+
+Originally, I had to add a null check on Genre and had to set Genre object into a Game record manually:
+```csharp
+public static class CreateGameEndpoint
+{
+    public static void MapCreateGame(this IEndpointRouteBuilder app)
+    {
+        app.MapPost("/", (CreateGameDto gameDto, GameStoreData data, GameDataLogger logger) =>
+        {
+            // Here
+            Genre? genre = data.GetGenre(gameDto.GenreId);
+            if (genre is null)
+            {
+                return Results.BadRequest("Invalid genre ID.");
+            }
+
+            Game game = new Game
+            {
+                Name = gameDto.Name,
+                Genre = genre, // Here
+                GenreId = genre.Id, // Here
+                Price = gameDto.Price,
+                ReleaseDate = gameDto.ReleaseDate,
+                Description = gameDto.Description
+            };
+
+            data.AddGame(game);
+
+            // Call the logger
+            logger.PrintGames();
+            
+            return Results.CreatedAtRoute(
+                EndpointName.GetGame,
+                new { id = game.Id },
+                new GameDetailsDto(
+                    game.Id,
+                    game.Name,
+                    game.Genre.Id,
+                    game.Price,
+                    game.ReleaseDate,
+                    game.Description
+                )
+            );
+        })
+        .WithParameterValidation();
+    }
+}
+```
+
+New - with DbContext via EF Core, I can just do this:
+```csharp
+public static class CreateGameEndpoint
+{
+    public static void MapCreateGame(this IEndpointRouteBuilder app)
+    {
+        app.MapPost("/", (CreateGameDto gameDto, GameStoreContext dbContext) =>
+        {
+
+            Game game = new Game
+            {
+                Name = gameDto.Name,
+                GenreId = gameDto.GenreId, // only need this now
+                Price = gameDto.Price,
+                ReleaseDate = gameDto.ReleaseDate,
+                Description = gameDto.Description
+            };
+
+            dbContext.Games.Add(game); // EF Core
+            dbContext.SaveChanges(); // EF Core
+            
+            return Results.CreatedAtRoute(
+                EndpointName.GetGame,
+                new { id = game.Id },
+                new GameDetailsDto(
+                    game.Id,
+                    game.Name,
+                    game.GenreId,   // only need this now
+                    game.Price,
+                    game.ReleaseDate,
+                    game.Description
+                )
+            );
+        })
+        .WithParameterValidation();
+    }
+}
+```
+
+*Foreign key constraint just means "this value must exist somewhere else before you can use it here."
+
+#### Why removing the null check on Genre?
+
+#####  With in-memory data (GameStoreData)
+
+Your in-memory store has no concept of database relationships. When you create a Game, you need to manually set both the Genre object and the GenreId:
+```csharp
+Genre = genre,      // the full object, needed for navigation
+GenreId = genre.Id, // the ID
+```
+So you must first fetch the `Genre` object to:
+1. Verify it actually exists (hence the null check)
+2. Assign it to `game.Genre` so the object is complete
+
+##### With EF Core + DbContext
+
+EF Core understands database relationships. When you save a `Game` with just a `GenreId`, EF Core will:
+
+1. Trust that the foreign key is valid (the database enforces this with a FK constraint)
+2. Not require you to load the Genre object just to save the game.
+
+So this is enough:
+```csharp
+Game game = new Game
+{
+    Name = gameDto.Name,
+    GenreId = gameDto.GenreId, // EF Core handles the relationship
+...
+};
+```
+
+If the `GenreId` doesn't exist in the database, the database itself throws an error when EF Core tries to save. You don't need to pre-check it manually.
+
+#### Why dropping the `Genre = genre` line also
+
+With EF Core, you can drop the `Genre = genre` line entirely.
+
+That line was needed in the in-memory version because you had no database.
+
+With EF Core, if you need the Genre object after saving, you can just query it separately.
+
+#### Removed the logger parts
+
+I don't need to log it out anymore.
+
+#### Add the dbContext
+
+Remember: `DbContext` is EF Core's unit of work. It:
+- Tracks changes to your objects in memory.
+- Translates those changes into SQL when you call `SaveChanges()`.
+- Manages the connection to the database.
+
+```csharp
+dbContext.Games.Add(game); // EF Core
+dbContext.SaveChanges(); // EF Core
+```
+
+And that `Games` is pointing to this:
+```csharp
+//GameStoreContext.cs
+public class GameStoreContext(DbContextOptions<GameStoreContext> options): DbContext(options)
+{
+    public DbSet<Game> Games => Set<Game>();
+    public DbSet<Genre> Genres => Set<Genre>();
+}
+```
+
+And in a web app, `DbContext` is usually registered with a scoped lifetime, so does my app.
+
+#### Test
+
+Run `dotnet run` in Terminal. Grab the newly migrated and seeded database > Genres table any GenreId. Paste that into the POST request.
+
+The Games table should have a newly created Game.
+
+If I tried to put an invalid GenreId i.e. an non exisiting GenreId, then it should not create a new Game successfully. It should a Foreign Key Constraint error like this:
+```bash
+Microsoft.Data.Sqlite.SqliteException (0x80004005): SQLite Error 19: 'FOREIGN KEY constraint failed'.
+```
+
+### Querying single records from the database
