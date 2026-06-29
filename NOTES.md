@@ -3692,7 +3692,7 @@ public static class CreateGameEndpoint
 
 #####  With in-memory data (GameStoreData)
 
-Your in-memory store has no concept of database relationships. When you create a Game, you need to manually set both the Genre object and the GenreId:
+Your in-memory store (`GameStoreData`) has no concept of database relationships. When you create a Game, you need to manually set both the Genre object and the GenreId:
 ```csharp
 Genre = genre,      // the full object, needed for navigation
 GenreId = genre.Id, // the ID
@@ -3758,7 +3758,7 @@ And in a web app, `DbContext` is usually registered with a scoped lifetime, so d
 
 #### Test
 
-Run `dotnet run` in Terminal. Grab the newly migrated and seeded database > Genres table any GenreId. Paste that into the POST request.
+Run `dotnet run` in Terminal. Grab any Id in the Genres table from the newly migrated and seeded database. Paste that into the POST request's GenreId in `gamestore.http`.
 
 The Games table should have a newly created Game.
 
@@ -3768,3 +3768,76 @@ Microsoft.Data.Sqlite.SqliteException (0x80004005): SQLite Error 19: 'FOREIGN KE
 ```
 
 ### Querying single records from the database
+
+Again, replace in-memory database i.e. GameStoreData with EF Core i.e. GameStoreContext:
+```csharp
+// GetGameEndpoint.cs
+// old:
+public static class GetGameEndpoint
+{
+    public static void MapGetGame(this IEndpointRouteBuilder app)
+    {
+        app.MapGet("/{id}", (Guid id, GameStoreData data) =>
+        {
+            Game? game = data.GetGame(id);
+            return game is null ? Results.NotFound() : Results.Ok(
+                new GameDetailsDto(
+                    game.Id,
+                    game.Name,
+                    game.GenreId,
+                    game.Price,
+                    game.ReleaseDate,
+                    game.Description
+                )
+            );
+        })
+        .WithName(EndpointName.GetGame);
+    }
+}
+
+// new:
+public static class GetGameEndpoint
+{
+    public static void MapGetGame(this IEndpointRouteBuilder app)
+    {
+        app.MapGet("/{id}", (Guid id, GameStoreContext dbContext) =>
+        {
+            Game? game = dbContext.Games.Find(id);
+            return game is null ? Results.NotFound() : Results.Ok(
+                new GameDetailsDto(
+                    game.Id,
+                    game.Name,
+                    game.GenreId,
+                    game.Price,
+                    game.ReleaseDate,
+                    game.Description
+                )
+            );
+        })
+        .WithName(EndpointName.GetGame);
+    }
+}
+```
+
+Grab any Id from the Games table to test the GET ID request in `gamestore.http`.
+
+It should be ok:
+```bash
+HTTP/1.1 200 OK
+Connection: close
+Content-Type: application/json; charset=utf-8
+Date: Mon, 29 Jun 2026 01:22:02 GMT
+Server: Kestrel
+Transfer-Encoding: chunked
+
+{
+  "id": "9cc70b61-9ee6-4b71-946d-623ac84c83d2",
+  "name": "MarioKart2",
+  "genreId": "0e81be80-b94c-4c85-94a4-a40bd3176afc",
+  "price": 19.99,
+  "releaseDate": "2011-11-18",
+  "description": "A sandbox game that allows players to build and explore virtual worlds made of blocks."
+}
+```
+
+### Updating existing database records
