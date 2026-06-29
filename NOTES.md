@@ -3762,6 +3762,8 @@ Run `dotnet run` in Terminal. Grab any Id in the Genres table from the newly mig
 
 The Games table should have a newly created Game.
 
+##### FOREIGN KEY constraint failed
+
 If I tried to put an invalid GenreId i.e. an non exisiting GenreId, then it should not create a new Game successfully. It should a Foreign Key Constraint error like this:
 ```bash
 Microsoft.Data.Sqlite.SqliteException (0x80004005): SQLite Error 19: 'FOREIGN KEY constraint failed'.
@@ -3841,3 +3843,106 @@ Transfer-Encoding: chunked
 ```
 
 ### Updating existing database records
+
+```csharp
+// old:
+public static class UpdateGameEndpoint
+{
+    public static void MapUpdateGame(this IEndpointRouteBuilder app)
+    {
+        app.MapPut("/{id}", (Guid id, UpdateGameDto gameDto, GameStoreData data) =>
+        {
+            Game? existingGame = data.GetGame(id);
+            if (existingGame is null)
+            {
+                return Results.NotFound();
+            }
+
+            Genre? genre = data.GetGenre(gameDto.GenreId);
+
+            if (genre is null)
+            {
+                return Results.BadRequest("Invalid genre ID.");
+            }
+
+            existingGame.Name = gameDto.Name;
+            existingGame.Genre = genre;
+            existingGame.GenreId = genre.Id;
+            existingGame.Price = gameDto.Price;
+            existingGame.ReleaseDate = gameDto.ReleaseDate;
+            existingGame.Description = gameDto.Description;
+
+            return Results.NoContent();
+        })
+        .WithParameterValidation();
+    }
+}
+
+// new:
+public static class UpdateGameEndpoint
+{
+    public static void MapUpdateGame(this IEndpointRouteBuilder app)
+    {
+        app.MapPut("/{id}", (Guid id, UpdateGameDto gameDto, GameStoreContext dbContext) =>
+        {
+            Game? existingGame = dbContext.Games.Find(id);
+            if (existingGame is null)
+            {
+                return Results.NotFound();
+            }
+
+            // Removed the Genre navigation property check here as I don't need to set a Genre manually for a Game now
+
+            existingGame.Name = gameDto.Name;
+            existingGame.GenreId = gameDto.GenreId; // I only need this for EF Core
+            existingGame.Price = gameDto.Price;
+            existingGame.ReleaseDate = gameDto.ReleaseDate;
+            existingGame.Description = gameDto.Description;
+
+            dbContext.SaveChanges();
+
+            return Results.NoContent();
+        })
+        .WithParameterValidation();
+    }
+}
+```
+
+And test in `gamestore.http` with a valid Game id from other GET endpoint and a valid genreId. 
+
+It should be updated successfully:
+```bash
+HTTP/1.1 204 No Content
+Connection: close
+Date: Mon, 29 Jun 2026 02:38:03 GMT
+Server: Kestrel
+```
+
+#### Do I have to set a navigation property i.e. `Genre` along with a foreign key property i.e. `GenreId` on an entity like `Games`?
+
+The answer is no. I can just set a foreign key property.
+
+Just that with a foreign key property, I can easily query the associated Genre object like this:
+```csharp
+// What happens without Include()
+var game = dbContext.Games.First(g => g.Id == id);
+Console.WriteLine(game.Genre.Name); // NullReferenceException! Genre is null
+
+// What happens with Include()
+var game = dbContext.Games.Include(g => g.Genre).First(g => g.Id == id);
+Console.WriteLine(game.Genre.Name); // Works fine
+```
+
+`Include()` = "also load this related object for me so I can use it in C#".
+
+And at a GET one record endpoint it could look like this:
+```csharp
+app.MapGet("/{id}", (Guid id, GameStoreContext dbContext) =>
+{
+    var game = dbContext.Games
+        .Include(g => g.Genre)  // Here g is one Game object. You are saying "from this game, point to the Genre navigation property".
+        .First(g => g.Id == id);  // Here g is also one Game object. You are saying "find the first game where its Id matches". This 'id' comes from the route parameter above
+});
+```
+
+### Querying all records from the database
