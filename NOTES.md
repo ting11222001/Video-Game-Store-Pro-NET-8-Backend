@@ -3946,3 +3946,65 @@ app.MapGet("/{id}", (Guid id, GameStoreContext dbContext) =>
 ```
 
 ### Querying all records from the database
+
+`Genre` is a composite property had a null-forgiving operator. When changing to EF core, make sure use `.Include()` (which is a projection that EF Core can translate into a `join`) to get it loaded, or it will still give me `NullReferenceException` at runtime.
+
+Also, use `.AsNoTracking()` to tell EF core no need to keep tracking the changes to the entity when we're just querying data from database. This helps with performance.
+
+```csharp
+// old:
+public static class GetGamesEndpoint
+{
+    public static void MapGetGames(this IEndpointRouteBuilder app)
+    {
+        app.MapGet("/", (GameStoreData data) => data.GetGames().Select(game => new GameSummaryDto(
+            game.Id,
+            game.Name,
+            game.Genre!.Name,
+            game.Price,
+            game.ReleaseDate
+        )));
+    }
+}
+
+// new:
+public static class GetGamesEndpoint
+{
+    public static void MapGetGames(this IEndpointRouteBuilder app)
+    {
+        app.MapGet("/", (GameStoreContext dbContext) => dbContext.Games
+        .Include(game => game.Genre)
+        .Select(game => new GameSummaryDto(
+            game.Id,
+            game.Name,
+            game.Genre!.Name,
+            game.Price,
+            game.ReleaseDate
+        ))
+        .AsNoTracking());
+    }
+}
+```
+
+I also updated this GET genres endpoint:
+```csharp
+// old:
+public static class GetGenresEndpoint
+{
+    public static void MapGetGenres(this IEndpointRouteBuilder app)
+    {
+        app.MapGet("/", (GameStoreData data) => data.GetGenres().Select(
+            genre => new GenreDto(genre.Id, genre.Name)));
+    }
+}
+
+// new:
+public static class GetGenresEndpoint
+{
+    public static void MapGetGenres(this IEndpointRouteBuilder app)
+    {
+        app.MapGet("/", (GameStoreContext dbContext) => dbContext.Genres.Select(
+            genre => new GenreDto(genre.Id, genre.Name)));
+    }
+}
+```

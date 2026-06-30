@@ -9,7 +9,7 @@ Content-Type: application/json
 
 {
     "name": "Minecraft",
-    "genreId": "4e179397-c3f1-45ec-a271-c26f07ff64f3",
+    "genreId": "CAB769AE-7C5E-438F-935C-9E9F40B20AB8",
     "price": 19.99,
     "releaseDate": "2011-11-18",
     "description": "A sandbox game that allows players to build and explore virtual worlds made of blocks."
