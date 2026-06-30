@@ -4008,3 +4008,40 @@ public static class GetGenresEndpoint
     }
 }
 ```
+
+### Deleting records from the database
+
+One "inefficient" way is to load the record I want to delete and then delete it, but it takes two trips just to remove a record.
+
+The tutorial suggests to do a Batch Delete, like using `.Where()`, to find all the records with the matched condition at once, and then execute delete. Also, this doesn't need me to call `.SaveChanges()` as other endpoints. No change tracking needed.
+
+```csharp
+// old
+public static class DeleteGameEndpoint
+{
+    public static void MapDeleteGame(this IEndpointRouteBuilder app)
+        {
+            app.MapDelete("/{id}", (Guid id, GameStoreData data) =>
+            {
+                data.RemoveGame(id);
+                return Results.NoContent();
+            });
+    }
+}
+
+// new
+public static class DeleteGameEndpoint
+{
+    public static void MapDeleteGame(this IEndpointRouteBuilder app)
+        {
+            app.MapDelete("/{id}", (Guid id, GameStoreContext dbContext) =>
+            {
+                dbContext.Games
+                    .Where(game => game.Id == id)
+                    .ExecuteDelete();
+
+                return Results.NoContent();
+            });
+    }
+}
+```
