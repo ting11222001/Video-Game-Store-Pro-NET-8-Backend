@@ -4086,3 +4086,76 @@ This method is particularly efficient for scenarios where you want to delete a f
 Unlike other methods that require tracking entities, ExecuteDelete is designed to execute directly in the database, bypassing EF Core’s change tracker, making it an ideal choice for bulk deletions.
 
 ## UI Integration
+
+The tutorial provided a Blazor frontend application.
+
+Open another VS code window to open the frontend code folder (the root level, not inside `/src`).
+
+Then, open `appsettings.json`:
+```json
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning",
+      "Azure": "Warning"
+    }
+  },
+  "BackendApiUrl": "<YOUR API BASE URL HERE>",
+  "AllowedHosts": "*"
+}
+```
+
+To find the Backend Url to fill in here, go to my backend codebase, aka this project. Go to `launchSettings.json`. Go to `profiles` > `http` > `applicationUrl`.
+
+From backend's `launchSettings.json` here:
+```json
+{
+    ...
+    "profiles": {
+    "http": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": true,
+      "applicationUrl": "http://localhost:5065",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    },
+    ...
+}
+```
+
+
+To frontend's `appsettings.json` here:
+```json
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning",
+      "Azure": "Warning"
+    }
+  },
+  "BackendApiUrl": "http://localhost:5065",
+  "AllowedHosts": "*"
+}
+```
+
+In the frontend VS code, open the terminal, go to `src/GameStore.Frontend` folder, and run `dotnet build`.
+
+### Running front-end and back-end together
+
+Then go to each backend project (`Backend/src/GameStore.Api`) and frontend project (`src/GameStore.Frontend`) to run `dotnet run`.
+
+Then in the frontend project terminal, it will show this URL which I can use in the browser and see the app is up and running:
+```bash
+info: Microsoft.Hosting.Lifetime[14]
+Now listening on: http://localhost:5002
+```
+
+There will be just one line saying `Coming soon!` on the home page.
+
+Just click on `Catalog` tab to go to the catalog management page to see all the Games I have in the database.
+
+Screenshots are saved in the `demo` folder.

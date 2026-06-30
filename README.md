@@ -12,7 +12,20 @@ This is a more polished version of this project: [here](https://github.com/ting1
 
 ## Demo
 
-In progress.
+### Get All Games
+Retrieves the full list of games from the store.
+
+![Get All Games](demo/GetAllGames.png)
+
+### Update Game
+Updates the details of an existing game.
+
+![Update Game](demo/UpdateGame.png)
+
+### Delete Game
+Removes a game from the store.
+
+![Delete Game](demo/DeleteGame.png)
 
 ## Getting Started
 
